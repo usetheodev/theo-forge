@@ -1,0 +1,239 @@
+package forge
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
+	"time"
+)
+
+// WorkflowsService is the REST client for the Argo Workflows API.
+type WorkflowsService struct {
+	// Host is the Argo server URL.
+	Host string
+	// Token is the Bearer token for authentication.
+	Token string
+	// Namespace is the default namespace.
+	Namespace string
+	// VerifySSL controls TLS verification.
+	VerifySSL bool
+	// HTTPClient is the underlying HTTP client (injectable for testing).
+	HTTPClient HTTPClient
+}
+
+// HTTPClient is an interface for HTTP requests (allows mocking).
+type HTTPClient interface {
+	Do(req *http.Request) (*http.Response, error)
+}
+
+// NewWorkflowsService creates a new WorkflowsService.
+func NewWorkflowsService(host, token, namespace string) *WorkflowsService {
+	return &WorkflowsService{
+		Host:       strings.TrimRight(host, "/"),
+		Token:      token,
+		Namespace:  namespace,
+		VerifySSL:  true,
+		HTTPClient: &http.Client{Timeout: 30 * time.Second},
+	}
+}
+
+func (s *WorkflowsService) formatToken() string {
+	if s.Token == "" {
+		return ""
+	}
+	if strings.HasPrefix(s.Token, "Bearer ") {
+		return s.Token
+	}
+	return "Bearer " + s.Token
+}
+
+func (s *WorkflowsService) doRequest(ctx context.Context, method, path string, body interface{}) ([]byte, int, error) {
+	url := s.Host + path
+
+	var reqBody io.Reader
+	if body != nil {
+		data, err := json.Marshal(body)
+		if err != nil {
+			return nil, 0, fmt.Errorf("marshal request body: %w", err)
+		}
+		reqBody = bytes.NewReader(data)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, url, reqBody)
+	if err != nil {
+		return nil, 0, fmt.Errorf("create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	if token := s.formatToken(); token != "" {
+		req.Header.Set("Authorization", token)
+	}
+
+	resp, err := s.HTTPClient.Do(req)
+	if err != nil {
+		return nil, 0, fmt.Errorf("execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, resp.StatusCode, fmt.Errorf("read response: %w", err)
+	}
+
+	if resp.StatusCode >= 400 {
+		return respBody, resp.StatusCode, &APIError{
+			StatusCode: resp.StatusCode,
+			Message:    string(respBody),
+		}
+	}
+
+	return respBody, resp.StatusCode, nil
+}
+
+// APIError represents an error from the Argo API.
+type APIError struct {
+	StatusCode int
+	Message    string
+}
+
+func (e *APIError) Error() string {
+	return fmt.Sprintf("argo API error (status %d): %s", e.StatusCode, e.Message)
+}
+
+// --- Workflow Operations ---
+
+// WorkflowCreateRequest is the request body for creating a workflow.
+type WorkflowCreateRequest struct {
+	Workflow   WorkflowModel `json:"workflow"`
+	Namespace string        `json:"namespace,omitempty"`
+}
+
+// CreateWorkflow submits a workflow to the Argo server.
+func (s *WorkflowsService) CreateWorkflow(ctx context.Context, w *Workflow) (WorkflowModel, error) {
+	model, err := w.Build()
+	if err != nil {
+		return WorkflowModel{}, err
+	}
+
+	ns := s.Namespace
+	if w.Namespace != "" {
+		ns = w.Namespace
+	}
+
+	body := WorkflowCreateRequest{Workflow: model}
+	respBody, _, err := s.doRequest(ctx, http.MethodPost, "/api/v1/workflows/"+ns, body)
+	if err != nil {
+		return WorkflowModel{}, err
+	}
+
+	var result WorkflowModel
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return WorkflowModel{}, fmt.Errorf("unmarshal response: %w", err)
+	}
+	return result, nil
+}
+
+// GetWorkflow retrieves a workflow by name.
+func (s *WorkflowsService) GetWorkflow(ctx context.Context, name, namespace string) (WorkflowModel, error) {
+	if namespace == "" {
+		namespace = s.Namespace
+	}
+	respBody, _, err := s.doRequest(ctx, http.MethodGet, "/api/v1/workflows/"+namespace+"/"+name, nil)
+	if err != nil {
+		return WorkflowModel{}, err
+	}
+
+	var result WorkflowModel
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return WorkflowModel{}, fmt.Errorf("unmarshal response: %w", err)
+	}
+	return result, nil
+}
+
+// DeleteWorkflow deletes a workflow by name.
+func (s *WorkflowsService) DeleteWorkflow(ctx context.Context, name, namespace string) error {
+	if namespace == "" {
+		namespace = s.Namespace
+	}
+	_, _, err := s.doRequest(ctx, http.MethodDelete, "/api/v1/workflows/"+namespace+"/"+name, nil)
+	return err
+}
+
+// ListWorkflowsResponse is the response for listing workflows.
+type ListWorkflowsResponse struct {
+	Items []WorkflowModel `json:"items"`
+}
+
+// ListWorkflows lists workflows in a namespace.
+func (s *WorkflowsService) ListWorkflows(ctx context.Context, namespace string) ([]WorkflowModel, error) {
+	if namespace == "" {
+		namespace = s.Namespace
+	}
+	respBody, _, err := s.doRequest(ctx, http.MethodGet, "/api/v1/workflows/"+namespace, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var result ListWorkflowsResponse
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return nil, fmt.Errorf("unmarshal response: %w", err)
+	}
+	return result.Items, nil
+}
+
+// LintWorkflow validates a workflow with the Argo server.
+func (s *WorkflowsService) LintWorkflow(ctx context.Context, w *Workflow) (WorkflowModel, error) {
+	model, err := w.Build()
+	if err != nil {
+		return WorkflowModel{}, err
+	}
+
+	ns := s.Namespace
+	if w.Namespace != "" {
+		ns = w.Namespace
+	}
+
+	body := WorkflowCreateRequest{Workflow: model}
+	respBody, _, err := s.doRequest(ctx, http.MethodPost, "/api/v1/workflows/"+ns+"/lint", body)
+	if err != nil {
+		return WorkflowModel{}, err
+	}
+
+	var result WorkflowModel
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return WorkflowModel{}, fmt.Errorf("unmarshal response: %w", err)
+	}
+	return result, nil
+}
+
+// --- Info Operations ---
+
+// GetInfo returns server info.
+func (s *WorkflowsService) GetInfo(ctx context.Context) (map[string]interface{}, error) {
+	respBody, _, err := s.doRequest(ctx, http.MethodGet, "/api/v1/info", nil)
+	if err != nil {
+		return nil, err
+	}
+	var result map[string]interface{}
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// GetVersion returns server version.
+func (s *WorkflowsService) GetVersion(ctx context.Context) (map[string]interface{}, error) {
+	respBody, _, err := s.doRequest(ctx, http.MethodGet, "/api/v1/version", nil)
+	if err != nil {
+		return nil, err
+	}
+	var result map[string]interface{}
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
