@@ -1,4 +1,4 @@
-package forge
+package client
 
 import (
 	"bytes"
@@ -9,7 +9,20 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/usetheo/theo/forge/model"
 )
+
+// HTTPClient is an interface for HTTP requests (allows mocking).
+type HTTPClient interface {
+	Do(req *http.Request) (*http.Response, error)
+}
+
+// Buildable is any type that can produce a WorkflowModel.
+type Buildable interface {
+	Build() (model.WorkflowModel, error)
+	GetNamespace() string
+}
 
 // WorkflowsService is the REST client for the Argo Workflows API.
 type WorkflowsService struct {
@@ -23,11 +36,6 @@ type WorkflowsService struct {
 	VerifySSL bool
 	// HTTPClient is the underlying HTTP client (injectable for testing).
 	HTTPClient HTTPClient
-}
-
-// HTTPClient is an interface for HTTP requests (allows mocking).
-type HTTPClient interface {
-	Do(req *http.Request) (*http.Response, error)
 }
 
 // NewWorkflowsService creates a new WorkflowsService.
@@ -108,48 +116,43 @@ func (e *APIError) Error() string {
 
 // WorkflowCreateRequest is the request body for creating a workflow.
 type WorkflowCreateRequest struct {
-	Workflow   WorkflowModel `json:"workflow"`
-	Namespace string        `json:"namespace,omitempty"`
+	Workflow  model.WorkflowModel `json:"workflow"`
+	Namespace string              `json:"namespace,omitempty"`
 }
 
-// CreateWorkflow submits a workflow to the Argo server.
-func (s *WorkflowsService) CreateWorkflow(ctx context.Context, w *Workflow) (WorkflowModel, error) {
-	model, err := w.Build()
-	if err != nil {
-		return WorkflowModel{}, err
+// CreateWorkflowFromModel submits a pre-built workflow model to the Argo server.
+func (s *WorkflowsService) CreateWorkflowFromModel(ctx context.Context, wfModel model.WorkflowModel, namespace string) (model.WorkflowModel, error) {
+	ns := namespace
+	if ns == "" {
+		ns = s.Namespace
 	}
 
-	ns := s.Namespace
-	if w.Namespace != "" {
-		ns = w.Namespace
-	}
-
-	body := WorkflowCreateRequest{Workflow: model}
+	body := WorkflowCreateRequest{Workflow: wfModel}
 	respBody, _, err := s.doRequest(ctx, http.MethodPost, "/api/v1/workflows/"+ns, body)
 	if err != nil {
-		return WorkflowModel{}, err
+		return model.WorkflowModel{}, err
 	}
 
-	var result WorkflowModel
+	var result model.WorkflowModel
 	if err := json.Unmarshal(respBody, &result); err != nil {
-		return WorkflowModel{}, fmt.Errorf("unmarshal response: %w", err)
+		return model.WorkflowModel{}, fmt.Errorf("unmarshal response: %w", err)
 	}
 	return result, nil
 }
 
 // GetWorkflow retrieves a workflow by name.
-func (s *WorkflowsService) GetWorkflow(ctx context.Context, name, namespace string) (WorkflowModel, error) {
+func (s *WorkflowsService) GetWorkflow(ctx context.Context, name, namespace string) (model.WorkflowModel, error) {
 	if namespace == "" {
 		namespace = s.Namespace
 	}
 	respBody, _, err := s.doRequest(ctx, http.MethodGet, "/api/v1/workflows/"+namespace+"/"+name, nil)
 	if err != nil {
-		return WorkflowModel{}, err
+		return model.WorkflowModel{}, err
 	}
 
-	var result WorkflowModel
+	var result model.WorkflowModel
 	if err := json.Unmarshal(respBody, &result); err != nil {
-		return WorkflowModel{}, fmt.Errorf("unmarshal response: %w", err)
+		return model.WorkflowModel{}, fmt.Errorf("unmarshal response: %w", err)
 	}
 	return result, nil
 }
@@ -165,11 +168,11 @@ func (s *WorkflowsService) DeleteWorkflow(ctx context.Context, name, namespace s
 
 // ListWorkflowsResponse is the response for listing workflows.
 type ListWorkflowsResponse struct {
-	Items []WorkflowModel `json:"items"`
+	Items []model.WorkflowModel `json:"items"`
 }
 
 // ListWorkflows lists workflows in a namespace.
-func (s *WorkflowsService) ListWorkflows(ctx context.Context, namespace string) ([]WorkflowModel, error) {
+func (s *WorkflowsService) ListWorkflows(ctx context.Context, namespace string) ([]model.WorkflowModel, error) {
 	if namespace == "" {
 		namespace = s.Namespace
 	}
@@ -185,27 +188,22 @@ func (s *WorkflowsService) ListWorkflows(ctx context.Context, namespace string) 
 	return result.Items, nil
 }
 
-// LintWorkflow validates a workflow with the Argo server.
-func (s *WorkflowsService) LintWorkflow(ctx context.Context, w *Workflow) (WorkflowModel, error) {
-	model, err := w.Build()
-	if err != nil {
-		return WorkflowModel{}, err
+// LintWorkflowFromModel validates a pre-built workflow model with the Argo server.
+func (s *WorkflowsService) LintWorkflowFromModel(ctx context.Context, wfModel model.WorkflowModel, namespace string) (model.WorkflowModel, error) {
+	ns := namespace
+	if ns == "" {
+		ns = s.Namespace
 	}
 
-	ns := s.Namespace
-	if w.Namespace != "" {
-		ns = w.Namespace
-	}
-
-	body := WorkflowCreateRequest{Workflow: model}
+	body := WorkflowCreateRequest{Workflow: wfModel}
 	respBody, _, err := s.doRequest(ctx, http.MethodPost, "/api/v1/workflows/"+ns+"/lint", body)
 	if err != nil {
-		return WorkflowModel{}, err
+		return model.WorkflowModel{}, err
 	}
 
-	var result WorkflowModel
+	var result model.WorkflowModel
 	if err := json.Unmarshal(respBody, &result); err != nil {
-		return WorkflowModel{}, fmt.Errorf("unmarshal response: %w", err)
+		return model.WorkflowModel{}, fmt.Errorf("unmarshal response: %w", err)
 	}
 	return result, nil
 }

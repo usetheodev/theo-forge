@@ -42,7 +42,7 @@ func (r *ResourceTemplate) BuildTemplate() (TemplateModel, error) {
 		for _, p := range r.Inputs {
 			m, err := p.AsInput()
 			if err != nil {
-				continue
+				return TemplateModel{}, fmt.Errorf("resource template %q input parameter %q: %w", r.Name, p.Name, err)
 			}
 			inputs.Parameters = append(inputs.Parameters, m)
 		}
@@ -54,7 +54,7 @@ func (r *ResourceTemplate) BuildTemplate() (TemplateModel, error) {
 		for _, p := range r.Outputs {
 			m, err := p.AsOutput()
 			if err != nil {
-				continue
+				return TemplateModel{}, fmt.Errorf("resource template %q output parameter %q: %w", r.Name, p.Name, err)
 			}
 			outputs.Parameters = append(outputs.Parameters, m)
 		}
@@ -158,7 +158,7 @@ func (h *HTTPTemplate) BuildTemplate() (TemplateModel, error) {
 		for _, p := range h.Inputs {
 			m, err := p.AsInput()
 			if err != nil {
-				continue
+				return TemplateModel{}, fmt.Errorf("HTTP template %q input parameter %q: %w", h.Name, p.Name, err)
 			}
 			inputs.Parameters = append(inputs.Parameters, m)
 		}
@@ -170,7 +170,7 @@ func (h *HTTPTemplate) BuildTemplate() (TemplateModel, error) {
 		for _, p := range h.Outputs {
 			m, err := p.AsOutput()
 			if err != nil {
-				continue
+				return TemplateModel{}, fmt.Errorf("HTTP template %q output parameter %q: %w", h.Name, p.Name, err)
 			}
 			outputs.Parameters = append(outputs.Parameters, m)
 		}

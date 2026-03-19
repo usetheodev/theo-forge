@@ -75,12 +75,12 @@ func (c *Container) buildVolumeMounts() []VolumeMountModel {
 	return mounts
 }
 
-func (c *Container) buildInputs() *InputsModel {
+func (c *Container) buildInputs() (*InputsModel, error) {
 	var params []ParameterModel
 	for _, p := range c.Inputs {
 		m, err := p.AsInput()
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("input parameter %q: %w", p.Name, err)
 		}
 		params = append(params, m)
 	}
@@ -88,22 +88,22 @@ func (c *Container) buildInputs() *InputsModel {
 	for _, a := range c.InputArtifacts {
 		m, err := a.Build()
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("input artifact: %w", err)
 		}
 		arts = append(arts, m)
 	}
 	if len(params) == 0 && len(arts) == 0 {
-		return nil
+		return nil, nil
 	}
-	return &InputsModel{Parameters: params, Artifacts: arts}
+	return &InputsModel{Parameters: params, Artifacts: arts}, nil
 }
 
-func (c *Container) buildOutputs() *OutputsModel {
+func (c *Container) buildOutputs() (*OutputsModel, error) {
 	var params []ParameterModel
 	for _, p := range c.Outputs {
 		m, err := p.AsOutput()
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("output parameter %q: %w", p.Name, err)
 		}
 		params = append(params, m)
 	}
@@ -111,14 +111,14 @@ func (c *Container) buildOutputs() *OutputsModel {
 	for _, a := range c.OutputArtifacts {
 		m, err := a.Build()
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("output artifact: %w", err)
 		}
 		arts = append(arts, m)
 	}
 	if len(params) == 0 && len(arts) == 0 {
-		return nil
+		return nil, nil
 	}
-	return &OutputsModel{Parameters: params, Artifacts: arts}
+	return &OutputsModel{Parameters: params, Artifacts: arts}, nil
 }
 
 func (c *Container) buildMetadata() *MetadataModel {
@@ -147,6 +147,16 @@ func (c *Container) BuildTemplate() (TemplateModel, error) {
 		rs = &m
 	}
 
+	inputs, err := c.buildInputs()
+	if err != nil {
+		return TemplateModel{}, fmt.Errorf("container %q: %w", c.Name, err)
+	}
+
+	outputs, err := c.buildOutputs()
+	if err != nil {
+		return TemplateModel{}, fmt.Errorf("container %q: %w", c.Name, err)
+	}
+
 	return TemplateModel{
 		Name: c.Name,
 		Container: &ContainerModel{
@@ -160,8 +170,8 @@ func (c *Container) BuildTemplate() (TemplateModel, error) {
 			ImagePullPolicy: string(c.ImagePullPolicy),
 			Ports:           c.Ports,
 		},
-		Inputs:                c.buildInputs(),
-		Outputs:               c.buildOutputs(),
+		Inputs:                inputs,
+		Outputs:               outputs,
 		Metadata:              c.buildMetadata(),
 		Timeout:               c.Timeout,
 		ActiveDeadlineSeconds: c.ActiveDeadlineSeconds,

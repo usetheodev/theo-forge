@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/usetheo/theo/forge/model"
 	"sigs.k8s.io/yaml"
 )
 
@@ -15,64 +16,6 @@ const (
 	// DefaultKind is the default resource kind.
 	DefaultKind = "Workflow"
 )
-
-// WorkflowModel is the serializable Argo Workflow.
-type WorkflowModel struct {
-	APIVersion string            `json:"apiVersion" yaml:"apiVersion"`
-	Kind       string            `json:"kind" yaml:"kind"`
-	Metadata   WorkflowMetadata  `json:"metadata" yaml:"metadata"`
-	Spec       WorkflowSpec      `json:"spec" yaml:"spec"`
-}
-
-// WorkflowMetadata is the metadata for a workflow.
-type WorkflowMetadata struct {
-	Name         string            `json:"name,omitempty" yaml:"name,omitempty"`
-	GenerateName string            `json:"generateName,omitempty" yaml:"generateName,omitempty"`
-	Namespace    string            `json:"namespace,omitempty" yaml:"namespace,omitempty"`
-	Labels       map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
-	Annotations  map[string]string `json:"annotations,omitempty" yaml:"annotations,omitempty"`
-}
-
-// WorkflowSpec is the spec for a workflow.
-type WorkflowSpec struct {
-	Entrypoint          string               `json:"entrypoint" yaml:"entrypoint"`
-	Templates           []TemplateModel      `json:"templates" yaml:"templates"`
-	Arguments           *ArgumentsModel      `json:"arguments,omitempty" yaml:"arguments,omitempty"`
-	Volumes             []VolumeModel        `json:"volumes,omitempty" yaml:"volumes,omitempty"`
-	VolumeClaimTemplates []PVCModel          `json:"volumeClaimTemplates,omitempty" yaml:"volumeClaimTemplates,omitempty"`
-	ServiceAccountName  string               `json:"serviceAccountName,omitempty" yaml:"serviceAccountName,omitempty"`
-	Parallelism         *int                 `json:"parallelism,omitempty" yaml:"parallelism,omitempty"`
-	ActiveDeadlineSeconds *int               `json:"activeDeadlineSeconds,omitempty" yaml:"activeDeadlineSeconds,omitempty"`
-	NodeSelector        map[string]string    `json:"nodeSelector,omitempty" yaml:"nodeSelector,omitempty"`
-	Tolerations         []Toleration         `json:"tolerations,omitempty" yaml:"tolerations,omitempty"`
-	Suspend             *bool                `json:"suspend,omitempty" yaml:"suspend,omitempty"`
-	HostNetwork         *bool                `json:"hostNetwork,omitempty" yaml:"hostNetwork,omitempty"`
-	TTLStrategy         *TTLStrategy         `json:"ttlStrategy,omitempty" yaml:"ttlStrategy,omitempty"`
-	PodGC               *PodGC               `json:"podGC,omitempty" yaml:"podGC,omitempty"`
-	Priority            *int                 `json:"priority,omitempty" yaml:"priority,omitempty"`
-	OnExit              string               `json:"onExit,omitempty" yaml:"onExit,omitempty"`
-	Metrics             *MetricsModel        `json:"metrics,omitempty" yaml:"metrics,omitempty"`
-	ArchiveLogs         *bool                `json:"archiveLogs,omitempty" yaml:"archiveLogs,omitempty"`
-	RetryStrategy       *RetryStrategyModel  `json:"retryStrategy,omitempty" yaml:"retryStrategy,omitempty"`
-	ImagePullSecrets    []ImagePullSecret    `json:"imagePullSecrets,omitempty" yaml:"imagePullSecrets,omitempty"`
-}
-
-// TTLStrategy defines how long the workflow CRD persists after completion.
-type TTLStrategy struct {
-	SecondsAfterCompletion *int `json:"secondsAfterCompletion,omitempty" yaml:"secondsAfterCompletion,omitempty"`
-	SecondsAfterSuccess    *int `json:"secondsAfterSuccess,omitempty" yaml:"secondsAfterSuccess,omitempty"`
-	SecondsAfterFailure    *int `json:"secondsAfterFailure,omitempty" yaml:"secondsAfterFailure,omitempty"`
-}
-
-// PodGC defines the pod garbage collection strategy.
-type PodGC struct {
-	Strategy string `json:"strategy" yaml:"strategy"`
-}
-
-// ImagePullSecret references a K8s secret for pulling images.
-type ImagePullSecret struct {
-	Name string `json:"name" yaml:"name"`
-}
 
 // Workflow represents an Argo Workflow.
 type Workflow struct {
@@ -111,21 +54,21 @@ type Workflow struct {
 	// NodeSelector constrains pod scheduling.
 	NodeSelector map[string]string
 	// Tolerations for pod scheduling.
-	Tolerations []Toleration
+	Tolerations []model.Toleration
 	// Suspend starts the workflow in a suspended state.
 	Suspend *bool
 	// HostNetwork enables host networking.
 	HostNetwork *bool
 	// TTLStrategy defines CRD retention.
-	TTLStrategy *TTLStrategy
+	TTLStrategy *model.TTLStrategy
 	// PodGC defines pod cleanup.
-	PodGC *PodGC
+	PodGC *model.PodGC
 	// Priority sets the workflow priority.
 	Priority *int
 	// OnExit is the exit handler template name.
 	OnExit string
 	// Metrics for the workflow.
-	Metrics []Metric
+	Metrics []model.Metric
 	// ArchiveLogs enables log archiving.
 	ArchiveLogs *bool
 	// RetryStrategy is the workflow-level retry strategy.
@@ -147,86 +90,86 @@ func (w *Workflow) validate() error {
 	return nil
 }
 
-func (w *Workflow) buildArguments() *ArgumentsModel {
+func (w *Workflow) buildArguments() (*model.ArgumentsModel, error) {
 	if len(w.Arguments) == 0 && len(w.ArgumentArtifacts) == 0 {
-		return nil
+		return nil, nil
 	}
-	args := &ArgumentsModel{}
+	args := &model.ArgumentsModel{}
 	for _, p := range w.Arguments {
 		m, err := p.AsArgument()
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("argument %q: %w", p.Name, err)
 		}
 		args.Parameters = append(args.Parameters, m)
 	}
 	for _, a := range w.ArgumentArtifacts {
 		m, err := a.Build()
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("argument artifact: %w", err)
 		}
 		args.Artifacts = append(args.Artifacts, m)
 	}
-	return args
+	return args, nil
 }
 
-func (w *Workflow) buildVolumes() []VolumeModel {
+func (w *Workflow) buildVolumes() ([]model.VolumeModel, error) {
 	if len(w.Volumes) == 0 {
-		return nil
+		return nil, nil
 	}
-	vols := make([]VolumeModel, 0, len(w.Volumes))
+	vols := make([]model.VolumeModel, 0, len(w.Volumes))
 	for _, v := range w.Volumes {
 		m, err := v.BuildVolume()
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("volume: %w", err)
 		}
 		vols = append(vols, m)
 	}
 	if len(vols) == 0 {
-		return nil
+		return nil, nil
 	}
-	return vols
+	return vols, nil
 }
 
-func (w *Workflow) buildVolumeClaimTemplates() []PVCModel {
+func (w *Workflow) buildVolumeClaimTemplates() ([]model.PVCModel, error) {
 	if len(w.VolumeClaimTemplates) == 0 {
-		return nil
+		return nil, nil
 	}
-	pvcs := make([]PVCModel, 0, len(w.VolumeClaimTemplates))
+	pvcs := make([]model.PVCModel, 0, len(w.VolumeClaimTemplates))
 	for _, v := range w.VolumeClaimTemplates {
 		m, err := v.BuildPVC()
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("volume claim template: %w", err)
 		}
 		pvcs = append(pvcs, m)
 	}
 	if len(pvcs) == 0 {
-		return nil
+		return nil, nil
 	}
-	return pvcs
+	return pvcs, nil
 }
 
-func (w *Workflow) buildMetrics() *MetricsModel {
+func (w *Workflow) buildMetrics() *model.MetricsModel {
 	if len(w.Metrics) == 0 {
 		return nil
 	}
-	return &MetricsModel{Prometheus: w.Metrics}
+	return &model.MetricsModel{Prometheus: w.Metrics}
 }
 
-func (w *Workflow) buildImagePullSecrets() []ImagePullSecret {
+func (w *Workflow) buildImagePullSecrets() []model.ImagePullSecret {
 	if len(w.ImagePullSecrets) == 0 {
 		return nil
 	}
-	secrets := make([]ImagePullSecret, len(w.ImagePullSecrets))
+	secrets := make([]model.ImagePullSecret, len(w.ImagePullSecrets))
 	for i, s := range w.ImagePullSecrets {
-		secrets[i] = ImagePullSecret{Name: s}
+		secrets[i] = model.ImagePullSecret{Name: s}
 	}
 	return secrets
 }
 
 // Build converts the Workflow to its serializable model.
-func (w *Workflow) Build() (WorkflowModel, error) {
+func (w *Workflow) Build() (model.WorkflowModel, error) {
 	if err := w.validate(); err != nil {
-		return WorkflowModel{}, err
+		return model.WorkflowModel{}, err
 	}
 
 	apiVersion := w.APIVersion
@@ -238,37 +181,52 @@ func (w *Workflow) Build() (WorkflowModel, error) {
 		kind = DefaultKind
 	}
 
-	templates := make([]TemplateModel, 0, len(w.Templates))
+	templates := make([]model.TemplateModel, 0, len(w.Templates))
 	for _, t := range w.Templates {
 		m, err := t.BuildTemplate()
 		if err != nil {
-			return WorkflowModel{}, fmt.Errorf("template %q: %w", t.GetName(), err)
+			return model.WorkflowModel{}, fmt.Errorf("template %q: %w", t.GetName(), err)
 		}
 		templates = append(templates, m)
 	}
 
-	var rs *RetryStrategyModel
+	args, err := w.buildArguments()
+	if err != nil {
+		return model.WorkflowModel{}, err
+	}
+
+	vols, err := w.buildVolumes()
+	if err != nil {
+		return model.WorkflowModel{}, err
+	}
+
+	pvcs, err := w.buildVolumeClaimTemplates()
+	if err != nil {
+		return model.WorkflowModel{}, err
+	}
+
+	var rs *model.RetryStrategyModel
 	if w.RetryStrategy != nil {
 		m := w.RetryStrategy.Build()
 		rs = &m
 	}
 
-	return WorkflowModel{
+	return model.WorkflowModel{
 		APIVersion: apiVersion,
 		Kind:       kind,
-		Metadata: WorkflowMetadata{
+		Metadata: model.WorkflowMetadata{
 			Name:         w.Name,
 			GenerateName: w.GenerateName,
 			Namespace:    w.Namespace,
 			Labels:       w.Labels,
 			Annotations:  w.Annotations,
 		},
-		Spec: WorkflowSpec{
+		Spec: model.WorkflowSpec{
 			Entrypoint:            w.Entrypoint,
 			Templates:             templates,
-			Arguments:             w.buildArguments(),
-			Volumes:               w.buildVolumes(),
-			VolumeClaimTemplates:  w.buildVolumeClaimTemplates(),
+			Arguments:             args,
+			Volumes:               vols,
+			VolumeClaimTemplates:  pvcs,
 			ServiceAccountName:    w.ServiceAccountName,
 			Parallelism:           w.Parallelism,
 			ActiveDeadlineSeconds: w.ActiveDeadlineSeconds,
@@ -290,11 +248,11 @@ func (w *Workflow) Build() (WorkflowModel, error) {
 
 // ToDict converts the workflow to a map (via JSON round-trip).
 func (w *Workflow) ToDict() (map[string]interface{}, error) {
-	model, err := w.Build()
+	m, err := w.Build()
 	if err != nil {
 		return nil, err
 	}
-	data, err := json.Marshal(model)
+	data, err := json.Marshal(m)
 	if err != nil {
 		return nil, err
 	}
@@ -307,11 +265,11 @@ func (w *Workflow) ToDict() (map[string]interface{}, error) {
 
 // ToJSON converts the workflow to a JSON string.
 func (w *Workflow) ToJSON() (string, error) {
-	model, err := w.Build()
+	m, err := w.Build()
 	if err != nil {
 		return "", err
 	}
-	data, err := json.MarshalIndent(model, "", "  ")
+	data, err := json.MarshalIndent(m, "", "  ")
 	if err != nil {
 		return "", err
 	}
@@ -320,11 +278,11 @@ func (w *Workflow) ToJSON() (string, error) {
 
 // ToYAML converts the workflow to a YAML string.
 func (w *Workflow) ToYAML() (string, error) {
-	model, err := w.Build()
+	m, err := w.Build()
 	if err != nil {
 		return "", err
 	}
-	data, err := yaml.Marshal(model)
+	data, err := yaml.Marshal(m)
 	if err != nil {
 		return "", err
 	}
@@ -332,21 +290,21 @@ func (w *Workflow) ToYAML() (string, error) {
 }
 
 // FromYAML creates a WorkflowModel from a YAML string.
-func FromYAML(yamlStr string) (WorkflowModel, error) {
-	var model WorkflowModel
-	if err := yaml.Unmarshal([]byte(yamlStr), &model); err != nil {
-		return WorkflowModel{}, err
+func FromYAML(yamlStr string) (model.WorkflowModel, error) {
+	var m model.WorkflowModel
+	if err := yaml.Unmarshal([]byte(yamlStr), &m); err != nil {
+		return model.WorkflowModel{}, err
 	}
-	return model, nil
+	return m, nil
 }
 
 // FromJSON creates a WorkflowModel from a JSON string.
-func FromJSON(jsonStr string) (WorkflowModel, error) {
-	var model WorkflowModel
-	if err := json.Unmarshal([]byte(jsonStr), &model); err != nil {
-		return WorkflowModel{}, err
+func FromJSON(jsonStr string) (model.WorkflowModel, error) {
+	var m model.WorkflowModel
+	if err := json.Unmarshal([]byte(jsonStr), &m); err != nil {
+		return model.WorkflowModel{}, err
 	}
-	return model, nil
+	return m, nil
 }
 
 // GetParameter retrieves a parameter from the workflow arguments by name.

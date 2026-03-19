@@ -1,4 +1,4 @@
-package forge
+package model
 
 // Label represents a Prometheus label.
 type Label struct {

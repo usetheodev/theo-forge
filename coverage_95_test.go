@@ -174,17 +174,13 @@ func TestWorkflowBuildVolumesWithError(t *testing.T) {
 		},
 		Templates: []Templatable{&Container{Name: "main", Image: "alpine"}},
 	}
-	model, err := w.Build()
-	if err != nil {
-		t.Fatal(err) // build doesn't fail, it skips invalid volumes
-	}
-	// Only the valid volume should be included
-	if len(model.Spec.Volumes) != 1 {
-		t.Errorf("volumes = %d, want 1 (invalid skipped)", len(model.Spec.Volumes))
+	_, err := w.Build()
+	if err == nil {
+		t.Fatal("expected error for volume with no name")
 	}
 }
 
-// Cover Workflow.buildVolumeClaimTemplates error skip
+// Cover Workflow.buildVolumeClaimTemplates error propagation
 func TestWorkflowBuildVolumeClaimTemplatesWithError(t *testing.T) {
 	w := &Workflow{
 		Name:       "test",
@@ -195,11 +191,8 @@ func TestWorkflowBuildVolumeClaimTemplatesWithError(t *testing.T) {
 		},
 		Templates: []Templatable{&Container{Name: "main", Image: "alpine"}},
 	}
-	model, err := w.Build()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(model.Spec.VolumeClaimTemplates) != 1 {
-		t.Errorf("pvcs = %d, want 1", len(model.Spec.VolumeClaimTemplates))
+	_, err := w.Build()
+	if err == nil {
+		t.Fatal("expected error for PVC with no name")
 	}
 }

@@ -1,20 +1,10 @@
 package forge
 
-import "fmt"
+import (
+	"fmt"
 
-// ValueFrom describes a location in which to obtain the value to a parameter.
-type ValueFrom struct {
-	// Path is a file path to read the value from.
-	Path string `json:"path,omitempty" yaml:"path,omitempty"`
-	// Expression is an expression to evaluate.
-	Expression string `json:"expression,omitempty" yaml:"expression,omitempty"`
-	// JSONPath is a JSONPath expression to evaluate against the resource.
-	JSONPath string `json:"jsonPath,omitempty" yaml:"jsonPath,omitempty"`
-	// Parameter is a reference to another parameter.
-	Parameter string `json:"parameter,omitempty" yaml:"parameter,omitempty"`
-	// Default is the default value if the source cannot be resolved.
-	Default *string `json:"default,omitempty" yaml:"default,omitempty"`
-}
+	"github.com/usetheo/theo/forge/model"
+)
 
 // Parameter represents a workflow parameter with name, value, default, and enum.
 type Parameter struct {
@@ -31,19 +21,7 @@ type Parameter struct {
 	// Default is the default value when not provided.
 	Default *string
 	// ValueFrom specifies where to obtain the value.
-	ValueFrom *ValueFrom
-}
-
-// ParameterModel is the serializable representation of a Parameter,
-// matching the Argo Workflows API schema.
-type ParameterModel struct {
-	Name        string     `json:"name" yaml:"name"`
-	Value       *string    `json:"value,omitempty" yaml:"value,omitempty"`
-	Default     *string    `json:"default,omitempty" yaml:"default,omitempty"`
-	Description string     `json:"description,omitempty" yaml:"description,omitempty"`
-	Enum        []string   `json:"enum,omitempty" yaml:"enum,omitempty"`
-	GlobalName  string     `json:"globalName,omitempty" yaml:"globalName,omitempty"`
-	ValueFrom   *ValueFrom `json:"valueFrom,omitempty" yaml:"valueFrom,omitempty"`
+	ValueFrom *model.ValueFrom
 }
 
 // String returns the string representation of the parameter value.
@@ -69,11 +47,11 @@ func (p Parameter) validateName() error {
 }
 
 // AsInput formats the parameter as an input parameter for a template.
-func (p Parameter) AsInput() (ParameterModel, error) {
+func (p Parameter) AsInput() (model.ParameterModel, error) {
 	if err := p.validateName(); err != nil {
-		return ParameterModel{}, err
+		return model.ParameterModel{}, err
 	}
-	return ParameterModel{
+	return model.ParameterModel{
 		Name:        p.Name,
 		Value:       p.Value,
 		Default:     p.Default,
@@ -85,11 +63,11 @@ func (p Parameter) AsInput() (ParameterModel, error) {
 }
 
 // AsArgument formats the parameter as an argument (excludes default).
-func (p Parameter) AsArgument() (ParameterModel, error) {
+func (p Parameter) AsArgument() (model.ParameterModel, error) {
 	if err := p.validateName(); err != nil {
-		return ParameterModel{}, err
+		return model.ParameterModel{}, err
 	}
-	return ParameterModel{
+	return model.ParameterModel{
 		Name:      p.Name,
 		Value:     p.Value,
 		ValueFrom: p.ValueFrom,
@@ -97,11 +75,11 @@ func (p Parameter) AsArgument() (ParameterModel, error) {
 }
 
 // AsOutput formats the parameter as an output parameter.
-func (p Parameter) AsOutput() (ParameterModel, error) {
+func (p Parameter) AsOutput() (model.ParameterModel, error) {
 	if err := p.validateName(); err != nil {
-		return ParameterModel{}, err
+		return model.ParameterModel{}, err
 	}
-	return ParameterModel{
+	return model.ParameterModel{
 		Name:       p.Name,
 		Value:      p.Value,
 		ValueFrom:  p.ValueFrom,

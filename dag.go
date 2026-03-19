@@ -1,6 +1,10 @@
 package forge
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/usetheo/theo/forge/model"
+)
 
 // Operator defines how task dependencies are combined.
 type Operator string
@@ -24,45 +28,6 @@ const (
 	TaskAllFailed    TaskResult = "AllFailed"
 )
 
-// DAGModel is the serializable Argo DAG template.
-type DAGModel struct {
-	Tasks    []DAGTaskModel `json:"tasks" yaml:"tasks"`
-	FailFast *bool          `json:"failFast,omitempty" yaml:"failFast,omitempty"`
-	Target   string         `json:"target,omitempty" yaml:"target,omitempty"`
-}
-
-// DAGTaskModel is the serializable Argo DAG task.
-type DAGTaskModel struct {
-	Name         string           `json:"name" yaml:"name"`
-	Template     string           `json:"template,omitempty" yaml:"template,omitempty"`
-	TemplateRef  *TemplateRef     `json:"templateRef,omitempty" yaml:"templateRef,omitempty"`
-	Dependencies []string         `json:"dependencies,omitempty" yaml:"dependencies,omitempty"`
-	Depends      string           `json:"depends,omitempty" yaml:"depends,omitempty"`
-	Arguments    *ArgumentsModel  `json:"arguments,omitempty" yaml:"arguments,omitempty"`
-	When         string           `json:"when,omitempty" yaml:"when,omitempty"`
-	ContinueOn   *ContinueOn     `json:"continueOn,omitempty" yaml:"continueOn,omitempty"`
-	WithItems    []interface{}    `json:"withItems,omitempty" yaml:"withItems,omitempty"`
-	WithParam    string           `json:"withParam,omitempty" yaml:"withParam,omitempty"`
-}
-
-// TemplateRef references a template in a WorkflowTemplate.
-type TemplateRef struct {
-	Name     string `json:"name" yaml:"name"`
-	Template string `json:"template" yaml:"template"`
-}
-
-// ArgumentsModel is the serializable Argo Arguments.
-type ArgumentsModel struct {
-	Parameters []ParameterModel `json:"parameters,omitempty" yaml:"parameters,omitempty"`
-	Artifacts  []ArtifactModel  `json:"artifacts,omitempty" yaml:"artifacts,omitempty"`
-}
-
-// ContinueOn defines when to continue after a step/task fails.
-type ContinueOn struct {
-	Error  bool `json:"error,omitempty" yaml:"error,omitempty"`
-	Failed bool `json:"failed,omitempty" yaml:"failed,omitempty"`
-}
-
 // Task represents a node in a DAG.
 type Task struct {
 	// Name is the task name (must be unique within the DAG).
@@ -70,7 +35,7 @@ type Task struct {
 	// Template is the template to invoke.
 	Template string
 	// TemplateRef references a template in a WorkflowTemplate.
-	TemplateRef *TemplateRef
+	TemplateRef *model.TemplateRef
 	// Dependencies are task names that must complete first.
 	Dependencies []string
 	// Depends is a complex dependency expression.
@@ -82,7 +47,7 @@ type Task struct {
 	// When is a conditional expression.
 	When string
 	// ContinueOn defines when to continue after failure.
-	ContinueOn *ContinueOn
+	ContinueOn *model.ContinueOn
 	// WithItems enables fan-out over a list.
 	WithItems []interface{}
 	// WithParam enables fan-out from a parameter.
@@ -142,31 +107,31 @@ func (t *Task) OnError(other *Task) *Task {
 }
 
 // BuildDAGTask builds the serializable DAG task model.
-func (t *Task) BuildDAGTask() (DAGTaskModel, error) {
+func (t *Task) BuildDAGTask() (model.DAGTaskModel, error) {
 	if t.Name == "" {
-		return DAGTaskModel{}, fmt.Errorf("task name cannot be empty")
+		return model.DAGTaskModel{}, fmt.Errorf("task name cannot be empty")
 	}
 
-	var args *ArgumentsModel
+	var args *model.ArgumentsModel
 	if len(t.Arguments) > 0 || len(t.ArgumentArtifacts) > 0 {
-		args = &ArgumentsModel{}
+		args = &model.ArgumentsModel{}
 		for _, p := range t.Arguments {
 			m, err := p.AsArgument()
 			if err != nil {
-				return DAGTaskModel{}, fmt.Errorf("task %q argument: %w", t.Name, err)
+				return model.DAGTaskModel{}, fmt.Errorf("task %q argument: %w", t.Name, err)
 			}
 			args.Parameters = append(args.Parameters, m)
 		}
 		for _, a := range t.ArgumentArtifacts {
 			m, err := a.Build()
 			if err != nil {
-				return DAGTaskModel{}, fmt.Errorf("task %q artifact: %w", t.Name, err)
+				return model.DAGTaskModel{}, fmt.Errorf("task %q artifact: %w", t.Name, err)
 			}
 			args.Artifacts = append(args.Artifacts, m)
 		}
 	}
 
-	return DAGTaskModel{
+	return model.DAGTaskModel{
 		Name:         t.Name,
 		Template:     t.Template,
 		TemplateRef:  t.TemplateRef,
@@ -229,75 +194,85 @@ func (d *DAG) GetName() string {
 	return d.Name
 }
 
-func (d *DAG) buildInputs() *InputsModel {
-	var params []ParameterModel
+func (d *DAG) buildInputs() (*model.InputsModel, error) {
+	var params []model.ParameterModel
 	for _, p := range d.Inputs {
 		m, err := p.AsInput()
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("input parameter %q: %w", p.Name, err)
 		}
 		params = append(params, m)
 	}
-	var arts []ArtifactModel
+	var arts []model.ArtifactModel
 	for _, a := range d.InputArtifacts {
 		m, err := a.Build()
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("input artifact: %w", err)
 		}
 		arts = append(arts, m)
 	}
 	if len(params) == 0 && len(arts) == 0 {
-		return nil
+		return nil, nil
 	}
-	return &InputsModel{Parameters: params, Artifacts: arts}
+	return &model.InputsModel{Parameters: params, Artifacts: arts}, nil
 }
 
-func (d *DAG) buildOutputs() *OutputsModel {
-	var params []ParameterModel
+func (d *DAG) buildOutputs() (*model.OutputsModel, error) {
+	var params []model.ParameterModel
 	for _, p := range d.Outputs {
 		m, err := p.AsOutput()
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("output parameter %q: %w", p.Name, err)
 		}
 		params = append(params, m)
 	}
-	var arts []ArtifactModel
+	var arts []model.ArtifactModel
 	for _, a := range d.OutputArtifacts {
 		m, err := a.Build()
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("output artifact: %w", err)
 		}
 		arts = append(arts, m)
 	}
 	if len(params) == 0 && len(arts) == 0 {
-		return nil
+		return nil, nil
 	}
-	return &OutputsModel{Parameters: params, Artifacts: arts}
+	return &model.OutputsModel{Parameters: params, Artifacts: arts}, nil
 }
 
 // BuildTemplate builds the Argo Template for this DAG.
-func (d *DAG) BuildTemplate() (TemplateModel, error) {
+func (d *DAG) BuildTemplate() (model.TemplateModel, error) {
 	if d.Name == "" {
-		return TemplateModel{}, fmt.Errorf("DAG template name cannot be empty")
+		return model.TemplateModel{}, fmt.Errorf("DAG template name cannot be empty")
 	}
 
-	tasks := make([]DAGTaskModel, 0, len(d.Tasks))
+	tasks := make([]model.DAGTaskModel, 0, len(d.Tasks))
 	for _, t := range d.Tasks {
 		m, err := t.BuildDAGTask()
 		if err != nil {
-			return TemplateModel{}, err
+			return model.TemplateModel{}, err
 		}
 		tasks = append(tasks, m)
 	}
 
-	return TemplateModel{
+	inputs, err := d.buildInputs()
+	if err != nil {
+		return model.TemplateModel{}, fmt.Errorf("DAG %q: %w", d.Name, err)
+	}
+
+	outputs, err := d.buildOutputs()
+	if err != nil {
+		return model.TemplateModel{}, fmt.Errorf("DAG %q: %w", d.Name, err)
+	}
+
+	return model.TemplateModel{
 		Name: d.Name,
-		DAG: &DAGModel{
+		DAG: &model.DAGModel{
 			Tasks:    tasks,
 			FailFast: d.FailFast,
 			Target:   d.Target,
 		},
-		Inputs:  d.buildInputs(),
-		Outputs: d.buildOutputs(),
+		Inputs:  inputs,
+		Outputs: outputs,
 	}, nil
 }

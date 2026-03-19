@@ -80,7 +80,7 @@ func (cs *ContainerSet) BuildTemplate() (TemplateModel, error) {
 		for _, p := range cs.Inputs {
 			m, err := p.AsInput()
 			if err != nil {
-				continue
+				return TemplateModel{}, fmt.Errorf("container set %q input parameter %q: %w", cs.Name, p.Name, err)
 			}
 			inputs.Parameters = append(inputs.Parameters, m)
 		}
@@ -92,7 +92,7 @@ func (cs *ContainerSet) BuildTemplate() (TemplateModel, error) {
 		for _, p := range cs.Outputs {
 			m, err := p.AsOutput()
 			if err != nil {
-				continue
+				return TemplateModel{}, fmt.Errorf("container set %q output parameter %q: %w", cs.Name, p.Name, err)
 			}
 			outputs.Parameters = append(outputs.Parameters, m)
 		}

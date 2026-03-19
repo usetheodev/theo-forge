@@ -2,16 +2,6 @@ package forge
 
 import "fmt"
 
-// InvalidType is returned when a wrong type is submitted to a context.
-type InvalidType struct {
-	Expected string
-	Got      string
-}
-
-func (e *InvalidType) Error() string {
-	return fmt.Sprintf("invalid type: expected %s, got %s", e.Expected, e.Got)
-}
-
 // NodeNameConflict is returned when duplicate step/task names are detected.
 type NodeNameConflict struct {
 	Name string

@@ -76,12 +76,12 @@ func (s *Script) buildVolumeMounts() []VolumeMountModel {
 	return mounts
 }
 
-func (s *Script) buildInputs() *InputsModel {
+func (s *Script) buildInputs() (*InputsModel, error) {
 	var params []ParameterModel
 	for _, p := range s.Inputs {
 		m, err := p.AsInput()
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("input parameter %q: %w", p.Name, err)
 		}
 		params = append(params, m)
 	}
@@ -89,22 +89,22 @@ func (s *Script) buildInputs() *InputsModel {
 	for _, a := range s.InputArtifacts {
 		m, err := a.Build()
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("input artifact: %w", err)
 		}
 		arts = append(arts, m)
 	}
 	if len(params) == 0 && len(arts) == 0 {
-		return nil
+		return nil, nil
 	}
-	return &InputsModel{Parameters: params, Artifacts: arts}
+	return &InputsModel{Parameters: params, Artifacts: arts}, nil
 }
 
-func (s *Script) buildOutputs() *OutputsModel {
+func (s *Script) buildOutputs() (*OutputsModel, error) {
 	var params []ParameterModel
 	for _, p := range s.Outputs {
 		m, err := p.AsOutput()
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("output parameter %q: %w", p.Name, err)
 		}
 		params = append(params, m)
 	}
@@ -112,14 +112,14 @@ func (s *Script) buildOutputs() *OutputsModel {
 	for _, a := range s.OutputArtifacts {
 		m, err := a.Build()
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("output artifact: %w", err)
 		}
 		arts = append(arts, m)
 	}
 	if len(params) == 0 && len(arts) == 0 {
-		return nil
+		return nil, nil
 	}
-	return &OutputsModel{Parameters: params, Artifacts: arts}
+	return &OutputsModel{Parameters: params, Artifacts: arts}, nil
 }
 
 func (s *Script) buildMetadata() *MetadataModel {
@@ -151,6 +151,16 @@ func (s *Script) BuildTemplate() (TemplateModel, error) {
 		rs = &m
 	}
 
+	inputs, err := s.buildInputs()
+	if err != nil {
+		return TemplateModel{}, fmt.Errorf("script %q: %w", s.Name, err)
+	}
+
+	outputs, err := s.buildOutputs()
+	if err != nil {
+		return TemplateModel{}, fmt.Errorf("script %q: %w", s.Name, err)
+	}
+
 	return TemplateModel{
 		Name: s.Name,
 		Script: &ScriptModel{
@@ -164,8 +174,8 @@ func (s *Script) BuildTemplate() (TemplateModel, error) {
 			VolumeMounts:    s.buildVolumeMounts(),
 			ImagePullPolicy: string(s.ImagePullPolicy),
 		},
-		Inputs:                s.buildInputs(),
-		Outputs:               s.buildOutputs(),
+		Inputs:                inputs,
+		Outputs:               outputs,
 		Metadata:              s.buildMetadata(),
 		Timeout:               s.Timeout,
 		ActiveDeadlineSeconds: s.ActiveDeadlineSeconds,

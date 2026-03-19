@@ -1,4 +1,4 @@
-package forge
+package expr
 
 import (
 	"fmt"
@@ -236,7 +236,7 @@ func (sprigNS) Replace(old, new, s string) Expr {
 
 // --- Global expression root ---
 
-// G is the global expression root, similar to Hera's `g`.
+// G is the global expression root.
 // Usage: G.Attr("tasks").Attr("task-a").Attr("outputs").Attr("result")
 var G = Expr{repr: ""}
 
@@ -245,8 +245,8 @@ func Tasks(name string) Expr {
 	return Expr{repr: "tasks." + name}
 }
 
-// StepsExpr returns a steps expression root.
-func StepsExpr(name string) Expr {
+// Steps returns a steps expression root.
+func Steps(name string) Expr {
 	return Expr{repr: "steps." + name}
 }
 
@@ -256,7 +256,7 @@ func Inputs() Expr {
 }
 
 // Outputs returns the outputs expression.
-func OutputsExpr() Expr {
+func Outputs() Expr {
 	return Expr{repr: "outputs"}
 }
 
@@ -266,7 +266,7 @@ func Item() Expr {
 }
 
 // Workflow returns a workflow-level expression.
-func WorkflowExpr() Expr {
+func Workflow() Expr {
 	return Expr{repr: "workflow"}
 }
 
@@ -282,7 +282,7 @@ func InputParam(name string) string {
 	return "{{inputs.parameters." + name + "}}"
 }
 
-// OutputParam creates a task output parameter reference.
+// TaskOutputParam creates a task output parameter reference.
 func TaskOutputParam(taskName, paramName string) string {
 	return "{{tasks." + taskName + ".outputs.parameters." + paramName + "}}"
 }

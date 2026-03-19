@@ -39,7 +39,18 @@ var globalConfig = &GlobalConfig{
 	VerifySSL: true,
 }
 
-// GetGlobalConfig returns the global configuration.
+// NewConfig creates an independent GlobalConfig instance for dependency injection.
+// Use this instead of GetGlobalConfig when you need isolated configuration
+// (e.g., in tests or when building workflows with different settings concurrently).
+func NewConfig() *GlobalConfig {
+	return &GlobalConfig{
+		Image:     "python:3.11",
+		VerifySSL: true,
+	}
+}
+
+// GetGlobalConfig returns the global configuration singleton.
+// For isolated configuration (tests, concurrent builds), use NewConfig() instead.
 func GetGlobalConfig() *GlobalConfig {
 	return globalConfig
 }

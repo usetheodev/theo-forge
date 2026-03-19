@@ -1,18 +1,10 @@
 package forge
 
-import "fmt"
+import (
+	"fmt"
 
-// StepModel is the serializable Argo Workflow step.
-type StepModel struct {
-	Name        string          `json:"name" yaml:"name"`
-	Template    string          `json:"template,omitempty" yaml:"template,omitempty"`
-	TemplateRef *TemplateRef    `json:"templateRef,omitempty" yaml:"templateRef,omitempty"`
-	Arguments   *ArgumentsModel `json:"arguments,omitempty" yaml:"arguments,omitempty"`
-	When        string          `json:"when,omitempty" yaml:"when,omitempty"`
-	ContinueOn  *ContinueOn    `json:"continueOn,omitempty" yaml:"continueOn,omitempty"`
-	WithItems   []interface{}   `json:"withItems,omitempty" yaml:"withItems,omitempty"`
-	WithParam   string          `json:"withParam,omitempty" yaml:"withParam,omitempty"`
-}
+	"github.com/usetheo/theo/forge/model"
+)
 
 // Step represents a single step in a Steps template.
 type Step struct {
@@ -21,7 +13,7 @@ type Step struct {
 	// Template is the template to invoke.
 	Template string
 	// TemplateRef references a template in a WorkflowTemplate.
-	TemplateRef *TemplateRef
+	TemplateRef *model.TemplateRef
 	// Arguments are the template arguments.
 	Arguments []Parameter
 	// ArgumentArtifacts are artifact arguments.
@@ -29,7 +21,7 @@ type Step struct {
 	// When is a conditional expression.
 	When string
 	// ContinueOn defines when to continue after failure.
-	ContinueOn *ContinueOn
+	ContinueOn *model.ContinueOn
 	// WithItems enables fan-out over a list.
 	WithItems []interface{}
 	// WithParam enables fan-out from a parameter.
@@ -52,31 +44,31 @@ func (s *Step) GetOutputArtifact(artifactName string) string {
 }
 
 // BuildStep builds the serializable step model.
-func (s *Step) BuildStep() (StepModel, error) {
+func (s *Step) BuildStep() (model.StepModel, error) {
 	if s.Name == "" {
-		return StepModel{}, fmt.Errorf("step name cannot be empty")
+		return model.StepModel{}, fmt.Errorf("step name cannot be empty")
 	}
 
-	var args *ArgumentsModel
+	var args *model.ArgumentsModel
 	if len(s.Arguments) > 0 || len(s.ArgumentArtifacts) > 0 {
-		args = &ArgumentsModel{}
+		args = &model.ArgumentsModel{}
 		for _, p := range s.Arguments {
 			m, err := p.AsArgument()
 			if err != nil {
-				return StepModel{}, fmt.Errorf("step %q argument: %w", s.Name, err)
+				return model.StepModel{}, fmt.Errorf("step %q argument: %w", s.Name, err)
 			}
 			args.Parameters = append(args.Parameters, m)
 		}
 		for _, a := range s.ArgumentArtifacts {
 			m, err := a.Build()
 			if err != nil {
-				return StepModel{}, fmt.Errorf("step %q artifact: %w", s.Name, err)
+				return model.StepModel{}, fmt.Errorf("step %q artifact: %w", s.Name, err)
 			}
 			args.Artifacts = append(args.Artifacts, m)
 		}
 	}
 
-	return StepModel{
+	return model.StepModel{
 		Name:        s.Name,
 		Template:    s.Template,
 		TemplateRef: s.TemplateRef,
@@ -108,8 +100,8 @@ func (p *Parallel) AddStep(step *Step) error {
 	return nil
 }
 
-func (p *Parallel) buildSteps() ([]StepModel, error) {
-	models := make([]StepModel, 0, len(p.Steps))
+func (p *Parallel) buildSteps() ([]model.StepModel, error) {
+	models := make([]model.StepModel, 0, len(p.Steps))
 	for _, s := range p.Steps {
 		m, err := s.BuildStep()
 		if err != nil {
@@ -178,71 +170,81 @@ func (s *Steps) GetName() string {
 	return s.Name
 }
 
-func (s *Steps) buildInputs() *InputsModel {
-	var params []ParameterModel
+func (s *Steps) buildInputs() (*model.InputsModel, error) {
+	var params []model.ParameterModel
 	for _, p := range s.Inputs {
 		m, err := p.AsInput()
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("input parameter %q: %w", p.Name, err)
 		}
 		params = append(params, m)
 	}
-	var arts []ArtifactModel
+	var arts []model.ArtifactModel
 	for _, a := range s.InputArtifacts {
 		m, err := a.Build()
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("input artifact: %w", err)
 		}
 		arts = append(arts, m)
 	}
 	if len(params) == 0 && len(arts) == 0 {
-		return nil
+		return nil, nil
 	}
-	return &InputsModel{Parameters: params, Artifacts: arts}
+	return &model.InputsModel{Parameters: params, Artifacts: arts}, nil
 }
 
-func (s *Steps) buildOutputs() *OutputsModel {
-	var params []ParameterModel
+func (s *Steps) buildOutputs() (*model.OutputsModel, error) {
+	var params []model.ParameterModel
 	for _, p := range s.Outputs {
 		m, err := p.AsOutput()
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("output parameter %q: %w", p.Name, err)
 		}
 		params = append(params, m)
 	}
-	var arts []ArtifactModel
+	var arts []model.ArtifactModel
 	for _, a := range s.OutputArtifacts {
 		m, err := a.Build()
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("output artifact: %w", err)
 		}
 		arts = append(arts, m)
 	}
 	if len(params) == 0 && len(arts) == 0 {
-		return nil
+		return nil, nil
 	}
-	return &OutputsModel{Parameters: params, Artifacts: arts}
+	return &model.OutputsModel{Parameters: params, Artifacts: arts}, nil
 }
 
 // BuildTemplate builds the Argo Template for this Steps template.
-func (s *Steps) BuildTemplate() (TemplateModel, error) {
+func (s *Steps) BuildTemplate() (model.TemplateModel, error) {
 	if s.Name == "" {
-		return TemplateModel{}, fmt.Errorf("steps template name cannot be empty")
+		return model.TemplateModel{}, fmt.Errorf("steps template name cannot be empty")
 	}
 
-	steps := make([][]StepModel, 0, len(s.StepGroups))
+	steps := make([][]model.StepModel, 0, len(s.StepGroups))
 	for _, group := range s.StepGroups {
 		models, err := group.buildSteps()
 		if err != nil {
-			return TemplateModel{}, err
+			return model.TemplateModel{}, err
 		}
 		steps = append(steps, models)
 	}
 
-	return TemplateModel{
+	inputs, err := s.buildInputs()
+	if err != nil {
+		return model.TemplateModel{}, fmt.Errorf("steps %q: %w", s.Name, err)
+	}
+
+	outputs, err := s.buildOutputs()
+	if err != nil {
+		return model.TemplateModel{}, fmt.Errorf("steps %q: %w", s.Name, err)
+	}
+
+	return model.TemplateModel{
 		Name:    s.Name,
 		Steps:   steps,
-		Inputs:  s.buildInputs(),
-		Outputs: s.buildOutputs(),
+		Inputs:  inputs,
+		Outputs: outputs,
 	}, nil
 }
