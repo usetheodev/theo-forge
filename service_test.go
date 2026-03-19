@@ -56,7 +56,7 @@ func TestServiceTokenFormatting(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			svc := &WorkflowsService{Token: tt.token}
-			got := svc.formatToken()
+			got := svc.FormatToken()
 			if got != tt.want {
 				t.Errorf("got %q, want %q", got, tt.want)
 			}

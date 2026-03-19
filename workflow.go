@@ -166,6 +166,11 @@ func (w *Workflow) buildImagePullSecrets() []model.ImagePullSecret {
 	return secrets
 }
 
+// GetNamespace returns the workflow namespace.
+func (w *Workflow) GetNamespace() string {
+	return w.Namespace
+}
+
 // Build converts the Workflow to its serializable model.
 func (w *Workflow) Build() (model.WorkflowModel, error) {
 	if err := w.validate(); err != nil {

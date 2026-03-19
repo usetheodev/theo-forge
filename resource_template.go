@@ -118,22 +118,6 @@ type HTTPTemplate struct {
 	Timeout string
 }
 
-// HTTPModel is the serializable Argo HTTP template.
-type HTTPModel struct {
-	URL              string            `json:"url" yaml:"url"`
-	Method           string            `json:"method,omitempty" yaml:"method,omitempty"`
-	Headers          []HTTPHeader      `json:"headers,omitempty" yaml:"headers,omitempty"`
-	Body             string            `json:"body,omitempty" yaml:"body,omitempty"`
-	SuccessCondition string            `json:"successCondition,omitempty" yaml:"successCondition,omitempty"`
-	TimeoutSeconds   *int              `json:"timeoutSeconds,omitempty" yaml:"timeoutSeconds,omitempty"`
-}
-
-// HTTPHeader is a single HTTP header.
-type HTTPHeader struct {
-	Name  string `json:"name" yaml:"name"`
-	Value string `json:"value" yaml:"value"`
-}
-
 func (h *HTTPTemplate) GetName() string {
 	return h.Name
 }
@@ -177,7 +161,7 @@ func (h *HTTPTemplate) BuildTemplate() (TemplateModel, error) {
 	}
 
 	return TemplateModel{
-		Name:    h.Name,
+		Name: h.Name,
 		HTTP: &HTTPModel{
 			URL:              h.URL,
 			Method:           h.Method,

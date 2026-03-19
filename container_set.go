@@ -2,11 +2,6 @@ package forge
 
 import "fmt"
 
-// ContainerSetModel is the serializable Argo ContainerSet.
-type ContainerSetModel struct {
-	Containers []ContainerModel `json:"containers" yaml:"containers"`
-}
-
 // ContainerNode is a container within a ContainerSet.
 type ContainerNode struct {
 	// Name is the container name.
@@ -110,9 +105,13 @@ func (cs *ContainerSet) BuildTemplate() (TemplateModel, error) {
 	}
 
 	return TemplateModel{
-		Name:          cs.Name,
-		Inputs:        inputs,
-		Outputs:       outputs,
+		Name:    cs.Name,
+		Inputs:  inputs,
+		Outputs: outputs,
+		ContainerSet: &ContainerSetModel{
+			Containers:   containers,
+			VolumeMounts: mounts,
+		},
 		RetryStrategy: rs,
 	}, nil
 }

@@ -88,7 +88,8 @@ type ScriptModel struct {
 
 // ContainerSetModel is the serializable Argo ContainerSet.
 type ContainerSetModel struct {
-	Containers []ContainerModel `json:"containers" yaml:"containers"`
+	Containers   []ContainerModel  `json:"containers" yaml:"containers"`
+	VolumeMounts []VolumeMountModel `json:"volumeMounts,omitempty" yaml:"volumeMounts,omitempty"`
 }
 
 // HTTPModel is the serializable Argo HTTP template.

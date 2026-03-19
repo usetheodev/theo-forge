@@ -49,7 +49,8 @@ func NewWorkflowsService(host, token, namespace string) *WorkflowsService {
 	}
 }
 
-func (s *WorkflowsService) formatToken() string {
+// FormatToken formats the token for the Authorization header.
+func (s *WorkflowsService) FormatToken() string {
 	if s.Token == "" {
 		return ""
 	}
@@ -77,7 +78,7 @@ func (s *WorkflowsService) doRequest(ctx context.Context, method, path string, b
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	if token := s.formatToken(); token != "" {
+	if token := s.FormatToken(); token != "" {
 		req.Header.Set("Authorization", token)
 	}
 
@@ -206,6 +207,26 @@ func (s *WorkflowsService) LintWorkflowFromModel(ctx context.Context, wfModel mo
 		return model.WorkflowModel{}, fmt.Errorf("unmarshal response: %w", err)
 	}
 	return result, nil
+}
+
+// --- High-Level Operations (accept Buildable) ---
+
+// CreateWorkflow builds a Buildable and submits it to the Argo server.
+func (s *WorkflowsService) CreateWorkflow(ctx context.Context, b Buildable) (model.WorkflowModel, error) {
+	wfModel, err := b.Build()
+	if err != nil {
+		return model.WorkflowModel{}, fmt.Errorf("build workflow: %w", err)
+	}
+	return s.CreateWorkflowFromModel(ctx, wfModel, b.GetNamespace())
+}
+
+// LintWorkflow builds a Buildable and validates it with the Argo server.
+func (s *WorkflowsService) LintWorkflow(ctx context.Context, b Buildable) (model.WorkflowModel, error) {
+	wfModel, err := b.Build()
+	if err != nil {
+		return model.WorkflowModel{}, fmt.Errorf("build workflow: %w", err)
+	}
+	return s.LintWorkflowFromModel(ctx, wfModel, b.GetNamespace())
 }
 
 // --- Info Operations ---
