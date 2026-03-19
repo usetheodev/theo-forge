@@ -192,6 +192,7 @@ func (w *Workflow) Build() (model.WorkflowModel, error) {
 		if err != nil {
 			return model.WorkflowModel{}, fmt.Errorf("template %q: %w", t.GetName(), err)
 		}
+		globalConfig.DispatchTemplateHooks(&m)
 		templates = append(templates, m)
 	}
 
@@ -216,7 +217,7 @@ func (w *Workflow) Build() (model.WorkflowModel, error) {
 		rs = &m
 	}
 
-	return model.WorkflowModel{
+	wfModel := model.WorkflowModel{
 		APIVersion: apiVersion,
 		Kind:       kind,
 		Metadata: model.WorkflowMetadata{
@@ -248,7 +249,10 @@ func (w *Workflow) Build() (model.WorkflowModel, error) {
 			RetryStrategy:         rs,
 			ImagePullSecrets:      w.buildImagePullSecrets(),
 		},
-	}, nil
+	}
+
+	globalConfig.DispatchWorkflowHooks(&wfModel)
+	return wfModel, nil
 }
 
 // ToDict converts the workflow to a map (via JSON round-trip).

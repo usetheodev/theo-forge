@@ -59,6 +59,7 @@ func (wt *WorkflowTemplate) Build() (model.WorkflowTemplateModel, error) {
 		if err != nil {
 			return model.WorkflowTemplateModel{}, fmt.Errorf("template %q: %w", t.GetName(), err)
 		}
+		globalConfig.DispatchTemplateHooks(&m)
 		templates = append(templates, m)
 	}
 
@@ -159,6 +160,7 @@ func (cwt *ClusterWorkflowTemplate) Build() (model.WorkflowTemplateModel, error)
 		if err != nil {
 			return model.WorkflowTemplateModel{}, fmt.Errorf("template %q: %w", t.GetName(), err)
 		}
+		globalConfig.DispatchTemplateHooks(&m)
 		templates = append(templates, m)
 	}
 
@@ -265,6 +267,7 @@ func (cw *CronWorkflow) Build() (model.CronWorkflowModel, error) {
 		if err != nil {
 			return model.CronWorkflowModel{}, fmt.Errorf("template %q: %w", t.GetName(), err)
 		}
+		globalConfig.DispatchTemplateHooks(&m)
 		templates = append(templates, m)
 	}
 
