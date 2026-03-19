@@ -170,52 +170,6 @@ func (s *Steps) GetName() string {
 	return s.Name
 }
 
-func (s *Steps) buildInputs() (*model.InputsModel, error) {
-	var params []model.ParameterModel
-	for _, p := range s.Inputs {
-		m, err := p.AsInput()
-		if err != nil {
-			return nil, fmt.Errorf("input parameter %q: %w", p.Name, err)
-		}
-		params = append(params, m)
-	}
-	var arts []model.ArtifactModel
-	for _, a := range s.InputArtifacts {
-		m, err := a.Build()
-		if err != nil {
-			return nil, fmt.Errorf("input artifact: %w", err)
-		}
-		arts = append(arts, m)
-	}
-	if len(params) == 0 && len(arts) == 0 {
-		return nil, nil
-	}
-	return &model.InputsModel{Parameters: params, Artifacts: arts}, nil
-}
-
-func (s *Steps) buildOutputs() (*model.OutputsModel, error) {
-	var params []model.ParameterModel
-	for _, p := range s.Outputs {
-		m, err := p.AsOutput()
-		if err != nil {
-			return nil, fmt.Errorf("output parameter %q: %w", p.Name, err)
-		}
-		params = append(params, m)
-	}
-	var arts []model.ArtifactModel
-	for _, a := range s.OutputArtifacts {
-		m, err := a.Build()
-		if err != nil {
-			return nil, fmt.Errorf("output artifact: %w", err)
-		}
-		arts = append(arts, m)
-	}
-	if len(params) == 0 && len(arts) == 0 {
-		return nil, nil
-	}
-	return &model.OutputsModel{Parameters: params, Artifacts: arts}, nil
-}
-
 // BuildTemplate builds the Argo Template for this Steps template.
 func (s *Steps) BuildTemplate() (model.TemplateModel, error) {
 	if s.Name == "" {
@@ -231,12 +185,12 @@ func (s *Steps) BuildTemplate() (model.TemplateModel, error) {
 		steps = append(steps, models)
 	}
 
-	inputs, err := s.buildInputs()
+	inputs, err := buildInputsFromParams(s.Inputs, s.InputArtifacts)
 	if err != nil {
 		return model.TemplateModel{}, fmt.Errorf("steps %q: %w", s.Name, err)
 	}
 
-	outputs, err := s.buildOutputs()
+	outputs, err := buildOutputsFromParams(s.Outputs, s.OutputArtifacts)
 	if err != nil {
 		return model.TemplateModel{}, fmt.Errorf("steps %q: %w", s.Name, err)
 	}

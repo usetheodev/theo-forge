@@ -26,16 +26,6 @@ type UserContainer struct {
 
 // Build creates the serializable ContainerModel.
 func (uc *UserContainer) Build() ContainerModel {
-	var envs []EnvVarModel
-	for _, e := range uc.Env {
-		envs = append(envs, e.Build())
-	}
-
-	var mounts []VolumeMountModel
-	for _, v := range uc.VolumeMounts {
-		mounts = append(mounts, v.BuildVolumeMount())
-	}
-
 	return ContainerModel{
 		Name:            uc.Name,
 		Image:           uc.Image,
@@ -43,9 +33,9 @@ func (uc *UserContainer) Build() ContainerModel {
 		Args:            uc.Args,
 		WorkingDir:      uc.WorkingDir,
 		ImagePullPolicy: string(uc.ImagePullPolicy),
-		Env:             envs,
+		Env:             buildEnvVars(uc.Env),
 		Resources:       uc.Resources,
-		VolumeMounts:    mounts,
+		VolumeMounts:    buildVolumeMountModels(uc.VolumeMounts),
 		Ports:           uc.Ports,
 	}
 }

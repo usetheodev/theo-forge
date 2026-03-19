@@ -1,6 +1,10 @@
 package forge
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/usetheo/theo/forge/model"
+)
 
 // Script represents an Argo Workflows script template.
 type Script struct {
@@ -54,134 +58,46 @@ func (s *Script) GetName() string {
 	return s.Name
 }
 
-func (s *Script) buildEnv() []EnvVarModel {
-	if len(s.Env) == 0 {
-		return nil
-	}
-	envs := make([]EnvVarModel, len(s.Env))
-	for i, e := range s.Env {
-		envs[i] = e.Build()
-	}
-	return envs
-}
-
-func (s *Script) buildVolumeMounts() []VolumeMountModel {
-	if len(s.VolumeMounts) == 0 {
-		return nil
-	}
-	mounts := make([]VolumeMountModel, len(s.VolumeMounts))
-	for i, v := range s.VolumeMounts {
-		mounts[i] = v.BuildVolumeMount()
-	}
-	return mounts
-}
-
-func (s *Script) buildInputs() (*InputsModel, error) {
-	var params []ParameterModel
-	for _, p := range s.Inputs {
-		m, err := p.AsInput()
-		if err != nil {
-			return nil, fmt.Errorf("input parameter %q: %w", p.Name, err)
-		}
-		params = append(params, m)
-	}
-	var arts []ArtifactModel
-	for _, a := range s.InputArtifacts {
-		m, err := a.Build()
-		if err != nil {
-			return nil, fmt.Errorf("input artifact: %w", err)
-		}
-		arts = append(arts, m)
-	}
-	if len(params) == 0 && len(arts) == 0 {
-		return nil, nil
-	}
-	return &InputsModel{Parameters: params, Artifacts: arts}, nil
-}
-
-func (s *Script) buildOutputs() (*OutputsModel, error) {
-	var params []ParameterModel
-	for _, p := range s.Outputs {
-		m, err := p.AsOutput()
-		if err != nil {
-			return nil, fmt.Errorf("output parameter %q: %w", p.Name, err)
-		}
-		params = append(params, m)
-	}
-	var arts []ArtifactModel
-	for _, a := range s.OutputArtifacts {
-		m, err := a.Build()
-		if err != nil {
-			return nil, fmt.Errorf("output artifact: %w", err)
-		}
-		arts = append(arts, m)
-	}
-	if len(params) == 0 && len(arts) == 0 {
-		return nil, nil
-	}
-	return &OutputsModel{Parameters: params, Artifacts: arts}, nil
-}
-
-func (s *Script) buildMetadata() *MetadataModel {
-	if len(s.Labels) == 0 && len(s.Annotations) == 0 {
-		return nil
-	}
-	return &MetadataModel{Labels: s.Labels, Annotations: s.Annotations}
-}
-
-func (s *Script) buildMetrics() *MetricsModel {
-	if len(s.Metrics) == 0 {
-		return nil
-	}
-	return &MetricsModel{Prometheus: s.Metrics}
-}
-
 // BuildTemplate builds the Argo Template for this script.
-func (s *Script) BuildTemplate() (TemplateModel, error) {
+func (s *Script) BuildTemplate() (model.TemplateModel, error) {
 	if s.Name == "" {
-		return TemplateModel{}, fmt.Errorf("script template name cannot be empty")
+		return model.TemplateModel{}, fmt.Errorf("script template name cannot be empty")
 	}
 	if s.Source == "" {
-		return TemplateModel{}, fmt.Errorf("script source cannot be empty")
+		return model.TemplateModel{}, fmt.Errorf("script source cannot be empty")
 	}
 
-	var rs *RetryStrategyModel
-	if s.RetryStrategy != nil {
-		m := s.RetryStrategy.Build()
-		rs = &m
-	}
-
-	inputs, err := s.buildInputs()
+	inputs, err := buildInputsFromParams(s.Inputs, s.InputArtifacts)
 	if err != nil {
-		return TemplateModel{}, fmt.Errorf("script %q: %w", s.Name, err)
+		return model.TemplateModel{}, fmt.Errorf("script %q: %w", s.Name, err)
 	}
 
-	outputs, err := s.buildOutputs()
+	outputs, err := buildOutputsFromParams(s.Outputs, s.OutputArtifacts)
 	if err != nil {
-		return TemplateModel{}, fmt.Errorf("script %q: %w", s.Name, err)
+		return model.TemplateModel{}, fmt.Errorf("script %q: %w", s.Name, err)
 	}
 
-	return TemplateModel{
+	return model.TemplateModel{
 		Name: s.Name,
-		Script: &ScriptModel{
+		Script: &model.ScriptModel{
 			Image:           s.Image,
 			Command:         s.Command,
 			Args:            s.Args,
 			Source:          s.Source,
 			WorkingDir:      s.WorkingDir,
-			Env:             s.buildEnv(),
+			Env:             buildEnvVars(s.Env),
 			Resources:       s.Resources,
-			VolumeMounts:    s.buildVolumeMounts(),
+			VolumeMounts:    buildVolumeMountModels(s.VolumeMounts),
 			ImagePullPolicy: string(s.ImagePullPolicy),
 		},
 		Inputs:                inputs,
 		Outputs:               outputs,
-		Metadata:              s.buildMetadata(),
+		Metadata:              buildMetadataModel(s.Labels, s.Annotations),
 		Timeout:               s.Timeout,
 		ActiveDeadlineSeconds: s.ActiveDeadlineSeconds,
-		RetryStrategy:         rs,
+		RetryStrategy:         buildRetryStrategyModel(s.RetryStrategy),
 		NodeSelector:          s.NodeSelector,
 		ServiceAccountName:    s.ServiceAccountName,
-		Metrics:               s.buildMetrics(),
+		Metrics:               buildMetricsModel(s.Metrics),
 	}, nil
 }

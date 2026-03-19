@@ -21,16 +21,12 @@ type ContainerNode struct {
 }
 
 func (c *ContainerNode) buildModel() ContainerModel {
-	var envs []EnvVarModel
-	for _, e := range c.Env {
-		envs = append(envs, e.Build())
-	}
 	return ContainerModel{
 		Name:      c.Name,
 		Image:     c.Image,
 		Command:   c.Command,
 		Args:      c.Args,
-		Env:       envs,
+		Env:       buildEnvVars(c.Env),
 		Resources: c.Resources,
 	}
 }

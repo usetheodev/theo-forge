@@ -1,6 +1,10 @@
 package forge
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/usetheo/theo/forge/model"
+)
 
 // Container represents an Argo Workflows container template.
 type Container struct {
@@ -53,131 +57,43 @@ func (c *Container) GetName() string {
 	return c.Name
 }
 
-func (c *Container) buildEnv() []EnvVarModel {
-	if len(c.Env) == 0 {
-		return nil
-	}
-	envs := make([]EnvVarModel, len(c.Env))
-	for i, e := range c.Env {
-		envs[i] = e.Build()
-	}
-	return envs
-}
-
-func (c *Container) buildVolumeMounts() []VolumeMountModel {
-	if len(c.VolumeMounts) == 0 {
-		return nil
-	}
-	mounts := make([]VolumeMountModel, len(c.VolumeMounts))
-	for i, v := range c.VolumeMounts {
-		mounts[i] = v.BuildVolumeMount()
-	}
-	return mounts
-}
-
-func (c *Container) buildInputs() (*InputsModel, error) {
-	var params []ParameterModel
-	for _, p := range c.Inputs {
-		m, err := p.AsInput()
-		if err != nil {
-			return nil, fmt.Errorf("input parameter %q: %w", p.Name, err)
-		}
-		params = append(params, m)
-	}
-	var arts []ArtifactModel
-	for _, a := range c.InputArtifacts {
-		m, err := a.Build()
-		if err != nil {
-			return nil, fmt.Errorf("input artifact: %w", err)
-		}
-		arts = append(arts, m)
-	}
-	if len(params) == 0 && len(arts) == 0 {
-		return nil, nil
-	}
-	return &InputsModel{Parameters: params, Artifacts: arts}, nil
-}
-
-func (c *Container) buildOutputs() (*OutputsModel, error) {
-	var params []ParameterModel
-	for _, p := range c.Outputs {
-		m, err := p.AsOutput()
-		if err != nil {
-			return nil, fmt.Errorf("output parameter %q: %w", p.Name, err)
-		}
-		params = append(params, m)
-	}
-	var arts []ArtifactModel
-	for _, a := range c.OutputArtifacts {
-		m, err := a.Build()
-		if err != nil {
-			return nil, fmt.Errorf("output artifact: %w", err)
-		}
-		arts = append(arts, m)
-	}
-	if len(params) == 0 && len(arts) == 0 {
-		return nil, nil
-	}
-	return &OutputsModel{Parameters: params, Artifacts: arts}, nil
-}
-
-func (c *Container) buildMetadata() *MetadataModel {
-	if len(c.Labels) == 0 && len(c.Annotations) == 0 {
-		return nil
-	}
-	return &MetadataModel{Labels: c.Labels, Annotations: c.Annotations}
-}
-
-func (c *Container) buildMetrics() *MetricsModel {
-	if len(c.Metrics) == 0 {
-		return nil
-	}
-	return &MetricsModel{Prometheus: c.Metrics}
-}
-
 // BuildTemplate builds the Argo Template for this container.
-func (c *Container) BuildTemplate() (TemplateModel, error) {
+func (c *Container) BuildTemplate() (model.TemplateModel, error) {
 	if c.Name == "" {
-		return TemplateModel{}, fmt.Errorf("container template name cannot be empty")
+		return model.TemplateModel{}, fmt.Errorf("container template name cannot be empty")
 	}
 
-	var rs *RetryStrategyModel
-	if c.RetryStrategy != nil {
-		m := c.RetryStrategy.Build()
-		rs = &m
-	}
-
-	inputs, err := c.buildInputs()
+	inputs, err := buildInputsFromParams(c.Inputs, c.InputArtifacts)
 	if err != nil {
-		return TemplateModel{}, fmt.Errorf("container %q: %w", c.Name, err)
+		return model.TemplateModel{}, fmt.Errorf("container %q: %w", c.Name, err)
 	}
 
-	outputs, err := c.buildOutputs()
+	outputs, err := buildOutputsFromParams(c.Outputs, c.OutputArtifacts)
 	if err != nil {
-		return TemplateModel{}, fmt.Errorf("container %q: %w", c.Name, err)
+		return model.TemplateModel{}, fmt.Errorf("container %q: %w", c.Name, err)
 	}
 
-	return TemplateModel{
+	return model.TemplateModel{
 		Name: c.Name,
-		Container: &ContainerModel{
+		Container: &model.ContainerModel{
 			Image:           c.Image,
 			Command:         c.Command,
 			Args:            c.Args,
 			WorkingDir:      c.WorkingDir,
-			Env:             c.buildEnv(),
+			Env:             buildEnvVars(c.Env),
 			Resources:       c.Resources,
-			VolumeMounts:    c.buildVolumeMounts(),
+			VolumeMounts:    buildVolumeMountModels(c.VolumeMounts),
 			ImagePullPolicy: string(c.ImagePullPolicy),
 			Ports:           c.Ports,
 		},
 		Inputs:                inputs,
 		Outputs:               outputs,
-		Metadata:              c.buildMetadata(),
+		Metadata:              buildMetadataModel(c.Labels, c.Annotations),
 		Timeout:               c.Timeout,
 		ActiveDeadlineSeconds: c.ActiveDeadlineSeconds,
-		RetryStrategy:         rs,
+		RetryStrategy:         buildRetryStrategyModel(c.RetryStrategy),
 		NodeSelector:          c.NodeSelector,
 		ServiceAccountName:    c.ServiceAccountName,
-		Metrics:               c.buildMetrics(),
+		Metrics:               buildMetricsModel(c.Metrics),
 	}, nil
 }

@@ -194,52 +194,6 @@ func (d *DAG) GetName() string {
 	return d.Name
 }
 
-func (d *DAG) buildInputs() (*model.InputsModel, error) {
-	var params []model.ParameterModel
-	for _, p := range d.Inputs {
-		m, err := p.AsInput()
-		if err != nil {
-			return nil, fmt.Errorf("input parameter %q: %w", p.Name, err)
-		}
-		params = append(params, m)
-	}
-	var arts []model.ArtifactModel
-	for _, a := range d.InputArtifacts {
-		m, err := a.Build()
-		if err != nil {
-			return nil, fmt.Errorf("input artifact: %w", err)
-		}
-		arts = append(arts, m)
-	}
-	if len(params) == 0 && len(arts) == 0 {
-		return nil, nil
-	}
-	return &model.InputsModel{Parameters: params, Artifacts: arts}, nil
-}
-
-func (d *DAG) buildOutputs() (*model.OutputsModel, error) {
-	var params []model.ParameterModel
-	for _, p := range d.Outputs {
-		m, err := p.AsOutput()
-		if err != nil {
-			return nil, fmt.Errorf("output parameter %q: %w", p.Name, err)
-		}
-		params = append(params, m)
-	}
-	var arts []model.ArtifactModel
-	for _, a := range d.OutputArtifacts {
-		m, err := a.Build()
-		if err != nil {
-			return nil, fmt.Errorf("output artifact: %w", err)
-		}
-		arts = append(arts, m)
-	}
-	if len(params) == 0 && len(arts) == 0 {
-		return nil, nil
-	}
-	return &model.OutputsModel{Parameters: params, Artifacts: arts}, nil
-}
-
 // BuildTemplate builds the Argo Template for this DAG.
 func (d *DAG) BuildTemplate() (model.TemplateModel, error) {
 	if d.Name == "" {
@@ -255,12 +209,12 @@ func (d *DAG) BuildTemplate() (model.TemplateModel, error) {
 		tasks = append(tasks, m)
 	}
 
-	inputs, err := d.buildInputs()
+	inputs, err := buildInputsFromParams(d.Inputs, d.InputArtifacts)
 	if err != nil {
 		return model.TemplateModel{}, fmt.Errorf("DAG %q: %w", d.Name, err)
 	}
 
-	outputs, err := d.buildOutputs()
+	outputs, err := buildOutputsFromParams(d.Outputs, d.OutputArtifacts)
 	if err != nil {
 		return model.TemplateModel{}, fmt.Errorf("DAG %q: %w", d.Name, err)
 	}
