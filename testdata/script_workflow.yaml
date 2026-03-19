@@ -1,0 +1,13 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: script-
+spec:
+  entrypoint: main
+  templates:
+  - name: main
+    script:
+      command:
+      - python
+      image: python:3.11-alpine
+      source: print('hello from script')
