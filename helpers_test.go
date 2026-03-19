@@ -639,3 +639,1253 @@ func TestExprConcat(t *testing.T) {
 		t.Errorf("got %q", result.String())
 	}
 }
+
+// --- Coverage tests (consolidated from coverage_test.go) ---
+
+// Cover ParamRef
+func TestParamRef(t *testing.T) {
+	got := expr.ParamRef("inputs.parameters.msg")
+	want := "{{inputs.parameters.msg}}"
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+// Cover APIError.Error
+func TestAPIErrorString(t *testing.T) {
+	e := &client.APIError{StatusCode: 404, Message: "not found"}
+	if !strings.Contains(e.Error(), "404") {
+		t.Errorf("error = %q", e.Error())
+	}
+	if !strings.Contains(e.Error(), "not found") {
+		t.Errorf("error = %q", e.Error())
+	}
+}
+
+// Cover GetVersion
+func TestServiceGetVersion(t *testing.T) {
+	svc := &client.WorkflowsService{
+		Host: "https://argo.example.com",
+		HTTPClient: &mockHTTPClient{
+			DoFunc: func(req *http.Request) (*http.Response, error) {
+				if req.URL.Path != "/api/v1/version" {
+					t.Errorf("path = %q", req.URL.Path)
+				}
+				return mockResponse(200, map[string]interface{}{"version": "v3.5.0"}), nil
+			},
+		},
+	}
+	v, err := svc.GetVersion(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v["version"] != "v3.5.0" {
+		t.Errorf("version = %v", v["version"])
+	}
+}
+
+// Cover FromJSON
+func TestFromJSONCoverage(t *testing.T) {
+	w := &Workflow{
+		Name:       "json-roundtrip",
+		Entrypoint: "main",
+		Templates:  []Templatable{&Container{Name: "main", Image: "alpine"}},
+	}
+	jsonStr, err := w.ToJSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	model, err := FromJSON(jsonStr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if model.Metadata.Name != "json-roundtrip" {
+		t.Errorf("name = %q", model.Metadata.Name)
+	}
+}
+
+func TestFromJSONInvalid(t *testing.T) {
+	_, err := FromJSON("{invalid json")
+	if err == nil {
+		t.Fatal("expected error for invalid JSON")
+	}
+}
+
+// Cover PVCVolume.BuildVolume
+func TestPVCVolumeBuildVolume(t *testing.T) {
+	v := PVCVolume{
+		BaseVolume:       BaseVolume{Name: "data", MountPath: "/data"},
+		Size:             "10Gi",
+		StorageClassName: "standard",
+		AccessModes:      []AccessMode{ReadWriteOnce},
+	}
+	vol, err := v.BuildVolume()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if vol.Name != "data" {
+		t.Errorf("name = %q", vol.Name)
+	}
+	if vol.PersistentVolumeClaim == nil {
+		t.Fatal("expected PVC ref")
+	}
+	if vol.PersistentVolumeClaim.ClaimName != "data" {
+		t.Errorf("claimName = %q", vol.PersistentVolumeClaim.ClaimName)
+	}
+}
+
+// Cover Expr.C with int64 and float64 branches
+func TestExprConstantInt64(t *testing.T) {
+	e := expr.C(int64(42))
+	if e.String() != "42" {
+		t.Errorf("got %q", e.String())
+	}
+}
+
+func TestExprConstantFloat64(t *testing.T) {
+	e := expr.C(float64(3.14))
+	if e.String() != "3.14" {
+		t.Errorf("got %q", e.String())
+	}
+}
+
+// Cover WorkflowTemplate name-too-long validation
+func TestWorkflowTemplateNameTooLong(t *testing.T) {
+	wt := &WorkflowTemplate{
+		Name:       strings.Repeat("a", NameLimit+1),
+		Entrypoint: "main",
+	}
+	_, err := wt.Build()
+	if err == nil {
+		t.Fatal("expected error for name too long")
+	}
+}
+
+// Cover HTTPTemplate with inputs and outputs
+func TestHTTPTemplateWithInputsOutputs(t *testing.T) {
+	h := &HTTPTemplate{
+		Name:   "with-io",
+		URL:    "https://example.com/api",
+		Method: "POST",
+		Inputs: []Parameter{{Name: "payload", Value: ptrStr("{}")}},
+		Outputs: []Parameter{{
+			Name:      "status",
+			ValueFrom: &ValueFrom{Expression: "response.statusCode"},
+		}},
+	}
+	tpl, err := h.BuildTemplate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tpl.Inputs == nil || len(tpl.Inputs.Parameters) != 1 {
+		t.Fatal("expected 1 input")
+	}
+	if tpl.Outputs == nil || len(tpl.Outputs.Parameters) != 1 {
+		t.Fatal("expected 1 output")
+	}
+}
+
+// Cover GlobalConfig.GetImage empty fallback
+func TestGlobalConfigGetImageFallback(t *testing.T) {
+	cfg := GetGlobalConfig()
+	defer cfg.Reset()
+	cfg.Image = ""
+	if cfg.GetImage() != "python:3.11" {
+		t.Errorf("fallback = %q", cfg.GetImage())
+	}
+}
+
+// Cover ContainerSet BuildTemplate output path
+func TestContainerSetWithOutputs(t *testing.T) {
+	cs := &ContainerSet{
+		Name: "with-out",
+		Containers: []ContainerNode{
+			{Name: "main", Image: "alpine"},
+		},
+		Outputs: []Parameter{{Name: "result", ValueFrom: &ValueFrom{Path: "/tmp/out"}}},
+	}
+	tpl, err := cs.BuildTemplate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tpl.Outputs == nil || len(tpl.Outputs.Parameters) != 1 {
+		t.Fatal("expected 1 output")
+	}
+}
+
+// Cover ContainerSet with retry
+func TestContainerSetWithRetry(t *testing.T) {
+	limit := 2
+	cs := &ContainerSet{
+		Name: "with-retry",
+		Containers: []ContainerNode{
+			{Name: "main", Image: "alpine"},
+		},
+		RetryStrategy: &RetryStrategy{Limit: &limit},
+	}
+	tpl, err := cs.BuildTemplate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tpl.RetryStrategy == nil {
+		t.Fatal("expected retry strategy")
+	}
+}
+
+// --- Coverage 90% tests (consolidated from coverage_90_test.go) ---
+
+// Cover ToYAML/ToJSON/ToDict error paths (invalid workflow -> Build fails -> propagates)
+func TestWorkflowToYAMLBuildError(t *testing.T) {
+	w := &Workflow{Entrypoint: "main"} // no name
+	_, err := w.ToYAML()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestWorkflowToJSONBuildError(t *testing.T) {
+	w := &Workflow{Entrypoint: "main"}
+	_, err := w.ToJSON()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestWorkflowToDictBuildError(t *testing.T) {
+	w := &Workflow{Entrypoint: "main"}
+	_, err := w.ToDict()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestFromYAMLInvalid(t *testing.T) {
+	_, err := FromYAML("{{{{bad yaml")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+// Cover WorkflowTemplate ToYAML error path
+func TestWorkflowTemplateToYAMLBuildError(t *testing.T) {
+	wt := &WorkflowTemplate{} // no name
+	_, err := wt.ToYAML()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+// Cover ClusterWorkflowTemplate ToYAML error path
+func TestClusterWorkflowTemplateToYAMLBuildError(t *testing.T) {
+	cwt := &ClusterWorkflowTemplate{} // no name
+	_, err := cwt.ToYAML()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+// Cover CronWorkflow ToYAML/ToJSON error paths
+func TestCronWorkflowToYAMLBuildError(t *testing.T) {
+	cw := &CronWorkflow{} // no name, no schedule
+	_, err := cw.ToYAML()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestCronWorkflowToJSONBuildError(t *testing.T) {
+	cw := &CronWorkflow{}
+	_, err := cw.ToJSON()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+// Cover Workflow.Build with failing template
+func TestWorkflowBuildWithFailingTemplate(t *testing.T) {
+	w := &Workflow{
+		Name:       "test",
+		Entrypoint: "main",
+		Templates: []Templatable{
+			&Container{Name: "", Image: "alpine"}, // no name -> fails
+		},
+	}
+	_, err := w.Build()
+	if err == nil {
+		t.Fatal("expected error from failing template")
+	}
+}
+
+// Cover WorkflowTemplate.Build with failing template
+func TestWorkflowTemplateBuildWithFailingTemplate(t *testing.T) {
+	wt := &WorkflowTemplate{
+		Name:       "test",
+		Entrypoint: "main",
+		Templates: []Templatable{
+			&Script{Name: "", Image: "alpine", Command: []string{"sh"}, Source: "echo"}, // no name
+		},
+	}
+	_, err := wt.Build()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+// Cover ClusterWorkflowTemplate.Build with failing template
+func TestClusterWorkflowTemplateBuildWithFailingTemplate(t *testing.T) {
+	cwt := &ClusterWorkflowTemplate{
+		Name:       "test",
+		Entrypoint: "main",
+		Templates: []Templatable{
+			&Container{Name: "", Image: "alpine"},
+		},
+	}
+	_, err := cwt.Build()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+// Cover CronWorkflow.Build with failing template
+func TestCronWorkflowBuildWithFailingTemplate(t *testing.T) {
+	cw := &CronWorkflow{
+		Name:       "test",
+		Schedule:   "0 * * * *",
+		Entrypoint: "main",
+		Templates: []Templatable{
+			&Container{Name: "", Image: "alpine"},
+		},
+	}
+	_, err := cw.Build()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+// Cover WorkflowTemplate.Build with volumes
+func TestWorkflowTemplateBuildWithVolumes(t *testing.T) {
+	wt := &WorkflowTemplate{
+		Name:       "with-vols",
+		Entrypoint: "main",
+		Volumes: []VolumeBuilder{
+			&EmptyDirVolume{BaseVolume: BaseVolume{Name: "tmp", MountPath: "/tmp"}},
+		},
+		Templates: []Templatable{&Container{Name: "main", Image: "alpine"}},
+	}
+	m, err := wt.Build()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(m.Spec.Volumes) != 1 {
+		t.Fatalf("volumes = %d", len(m.Spec.Volumes))
+	}
+}
+
+// Cover CronWorkflow.Build with volumes and arguments
+func TestCronWorkflowBuildWithVolsAndArgs(t *testing.T) {
+	cw := &CronWorkflow{
+		Name:       "full",
+		Schedule:   "0 * * * *",
+		Entrypoint: "main",
+		Arguments:  []Parameter{{Name: "env", Value: ptrStr("prod")}},
+		Volumes: []VolumeBuilder{
+			&EmptyDirVolume{BaseVolume: BaseVolume{Name: "tmp", MountPath: "/tmp"}},
+		},
+		Templates: []Templatable{&Container{Name: "main", Image: "alpine"}},
+	}
+	m, err := cw.Build()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Spec.WorkflowSpec.Arguments == nil {
+		t.Fatal("expected arguments")
+	}
+	if len(m.Spec.WorkflowSpec.Volumes) != 1 {
+		t.Fatal("expected 1 volume")
+	}
+}
+
+// Cover Workflow.ToFile error paths
+func TestWorkflowToFileBuildError(t *testing.T) {
+	w := &Workflow{Entrypoint: "main"} // no name
+	_, err := w.ToFile(t.TempDir(), "")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+// Cover DAG.buildOutputs with output parameters
+func TestDAGWithOutputParameters(t *testing.T) {
+	dag := &DAG{
+		Name: "with-out-params",
+		Outputs: []Parameter{
+			{Name: "result", ValueFrom: &ValueFrom{Expression: "tasks.final.outputs.result"}},
+		},
+	}
+	tpl, err := dag.BuildTemplate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tpl.Outputs == nil || len(tpl.Outputs.Parameters) != 1 {
+		t.Fatal("expected 1 output parameter")
+	}
+}
+
+// Cover LintWorkflow build error path
+func TestServiceLintWorkflowBuildError(t *testing.T) {
+	svc := &client.WorkflowsService{Host: "https://argo.example.com", Namespace: "default"}
+	w := &Workflow{Entrypoint: "main"} // no name
+	_, err := svc.LintWorkflow(nil, w)
+	if err == nil {
+		t.Fatal("expected build error")
+	}
+}
+
+// Cover CreateWorkflow build error path
+func TestServiceCreateWorkflowBuildError(t *testing.T) {
+	svc := &client.WorkflowsService{Host: "https://argo.example.com", Namespace: "default"}
+	w := &Workflow{Entrypoint: "main"} // no name
+	_, err := svc.CreateWorkflow(nil, w)
+	if err == nil {
+		t.Fatal("expected build error")
+	}
+}
+
+// Cover AddParallelGroup with name conflict within group
+func TestStepsAddParallelGroupInternalConflict(t *testing.T) {
+	steps := &Steps{Name: "test"}
+	err := steps.AddParallelGroup(
+		&Step{Name: "dup", Template: "a"},
+		&Step{Name: "dup", Template: "b"},
+	)
+	if err == nil {
+		t.Fatal("expected name conflict within parallel group")
+	}
+}
+
+// Cover S3/GCS/HTTP/Git/Raw artifact error paths
+func TestS3ArtifactNoNameFails(t *testing.T) {
+	a := S3Artifact{Artifact: Artifact{Path: "/tmp"}, Bucket: "b", Key: "k"}
+	_, err := a.Build()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestGCSArtifactNoNameFails(t *testing.T) {
+	a := GCSArtifact{Artifact: Artifact{Path: "/tmp"}, Bucket: "b", Key: "k"}
+	_, err := a.Build()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestGitArtifactNoNameFails(t *testing.T) {
+	a := GitArtifact{Artifact: Artifact{Path: "/tmp"}, Repo: "r"}
+	_, err := a.Build()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestRawArtifactNoNameFails(t *testing.T) {
+	a := RawArtifact{Artifact: Artifact{Path: "/tmp"}, Data: "d"}
+	_, err := a.Build()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestHTTPArtifactNoNameFails(t *testing.T) {
+	a := HTTPArtifact{Artifact: Artifact{Path: "/tmp"}, URL: "u"}
+	_, err := a.Build()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+// Cover Expr.C default branch
+func TestExprConstantDefault(t *testing.T) {
+	type custom struct{ X int }
+	e := expr.C(custom{X: 42})
+	if !strings.Contains(e.String(), "42") {
+		t.Errorf("got %q", e.String())
+	}
+}
+
+// --- Coverage 95% tests (consolidated from coverage_95_test.go) ---
+
+// Cover ClusterWorkflowTemplate.Build with arguments
+func TestClusterWorkflowTemplateBuildWithArguments(t *testing.T) {
+	cwt := &ClusterWorkflowTemplate{
+		Name:       "with-args",
+		Entrypoint: "main",
+		Arguments:  []Parameter{{Name: "env", Value: ptrStr("prod")}},
+		Templates:  []Templatable{&Container{Name: "main", Image: "alpine"}},
+	}
+	m, err := cwt.Build()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Spec.Arguments == nil || len(m.Spec.Arguments.Parameters) != 1 {
+		t.Fatal("expected 1 argument")
+	}
+}
+
+// Cover CronWorkflow.Build with arguments
+func TestCronWorkflowBuildWithArguments(t *testing.T) {
+	cw := &CronWorkflow{
+		Name:       "with-args",
+		Schedule:   "0 * * * *",
+		Entrypoint: "main",
+		Arguments:  []Parameter{{Name: "env", Value: ptrStr("staging")}},
+		Templates:  []Templatable{&Container{Name: "main", Image: "alpine"}},
+	}
+	m, err := cw.Build()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Spec.WorkflowSpec.Arguments == nil {
+		t.Fatal("expected arguments")
+	}
+}
+
+// Cover BuildDAGTask artifact argument error path
+func TestTaskBuildDAGTaskArtifactError(t *testing.T) {
+	task := &Task{
+		Name:     "test",
+		Template: "tpl",
+		ArgumentArtifacts: []ArtifactBuilder{
+			&Artifact{Path: "/tmp"}, // no name -> error
+		},
+	}
+	_, err := task.BuildDAGTask()
+	if err == nil {
+		t.Fatal("expected error from artifact build")
+	}
+}
+
+// Cover BuildStep artifact argument error path
+func TestStepBuildStepArtifactError(t *testing.T) {
+	s := &Step{
+		Name:     "test",
+		Template: "tpl",
+		ArgumentArtifacts: []ArtifactBuilder{
+			&Artifact{Path: "/tmp"}, // no name -> error
+		},
+	}
+	_, err := s.BuildStep()
+	if err == nil {
+		t.Fatal("expected error from artifact build")
+	}
+}
+
+// Cover BuildArguments artifact error path
+func TestBuildArgumentsArtifactError(t *testing.T) {
+	_, err := BuildArguments(
+		nil,
+		[]ArtifactBuilder{&Artifact{Path: "/tmp"}}, // no name
+	)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+// Cover BuildArguments parameter error path
+func TestBuildArgumentsParameterError(t *testing.T) {
+	_, err := BuildArguments(
+		[]Parameter{{Value: ptrStr("val")}}, // no name
+		nil,
+	)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+// Cover DAG.BuildTemplate with task build error
+func TestDAGBuildTemplateWithTaskError(t *testing.T) {
+	dag := &DAG{
+		Name: "test",
+		Tasks: []*Task{
+			{Name: "", Template: "tpl"}, // no name
+		},
+	}
+	_, err := dag.BuildTemplate()
+	if err == nil {
+		t.Fatal("expected error from task build")
+	}
+}
+
+// Cover Steps.BuildTemplate with step group error
+func TestStepsBuildTemplateWithStepError(t *testing.T) {
+	steps := &Steps{Name: "test"}
+	steps.StepGroups = append(steps.StepGroups, Parallel{
+		Steps: []*Step{{Name: "", Template: "tpl"}}, // no name
+	})
+	_, err := steps.BuildTemplate()
+	if err == nil {
+		t.Fatal("expected error from step build")
+	}
+}
+
+// Cover Workflow.ToFile with .yml extension
+func TestWorkflowToFileYmlExtension(t *testing.T) {
+	w := &Workflow{
+		Name:       "test",
+		Entrypoint: "main",
+		Templates:  []Templatable{&Container{Name: "main", Image: "alpine"}},
+	}
+	path, err := w.ToFile(t.TempDir(), "output.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if path[len(path)-4:] != ".yml" {
+		t.Errorf("path should end with .yml, got %q", path)
+	}
+}
+
+func TestConvertBinaryUnitLargeSuffix(t *testing.T) {
+	v, err := ConvertBinaryUnit("1Ti")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v != 1099511627776 { // 2^40
+		t.Errorf("got %f", v)
+	}
+}
+
+func TestConvertDecimalUnitLargeSuffix(t *testing.T) {
+	v, err := ConvertDecimalUnit("1G")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v != 1e9 {
+		t.Errorf("got %f", v)
+	}
+}
+
+// Cover ConfigMapVolume with no-name edge
+func TestConfigMapVolumeNoNameBuildsError(t *testing.T) {
+	v := ConfigMapVolume{BaseVolume: BaseVolume{MountPath: "/cfg"}}
+	_, err := v.BuildVolume()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+// Cover Workflow.buildVolumes error path (volume with no name)
+func TestWorkflowBuildVolumesWithError(t *testing.T) {
+	w := &Workflow{
+		Name:       "test",
+		Entrypoint: "main",
+		Volumes: []VolumeBuilder{
+			&EmptyDirVolume{BaseVolume: BaseVolume{Name: "good", MountPath: "/tmp"}},
+			&EmptyDirVolume{BaseVolume: BaseVolume{MountPath: "/bad"}}, // no name
+		},
+		Templates: []Templatable{&Container{Name: "main", Image: "alpine"}},
+	}
+	_, err := w.Build()
+	if err == nil {
+		t.Fatal("expected error for volume with no name")
+	}
+}
+
+// Cover Workflow.buildVolumeClaimTemplates error propagation
+func TestWorkflowBuildVolumeClaimTemplatesWithError(t *testing.T) {
+	w := &Workflow{
+		Name:       "test",
+		Entrypoint: "main",
+		VolumeClaimTemplates: []PVCVolume{
+			{BaseVolume: BaseVolume{Name: "good", MountPath: "/data"}, Size: "1Gi"},
+			{BaseVolume: BaseVolume{MountPath: "/bad"}, Size: "1Gi"}, // no name
+		},
+		Templates: []Templatable{&Container{Name: "main", Image: "alpine"}},
+	}
+	_, err := w.Build()
+	if err == nil {
+		t.Fatal("expected error for PVC with no name")
+	}
+}
+
+// --- Coverage extra tests (consolidated from coverage_extra_test.go) ---
+
+// Cover Workflow.buildVolumeClaimTemplates
+func TestWorkflowWithVolumeClaimTemplates(t *testing.T) {
+	w := &Workflow{
+		Name:       "with-pvcs",
+		Entrypoint: "main",
+		VolumeClaimTemplates: []PVCVolume{
+			{
+				BaseVolume:       BaseVolume{Name: "work", MountPath: "/work"},
+				Size:             "5Gi",
+				StorageClassName: "fast",
+				AccessModes:      []AccessMode{ReadWriteOnce},
+			},
+			{
+				BaseVolume:  BaseVolume{Name: "cache", MountPath: "/cache"},
+				Size:        "10Gi",
+				AccessModes: []AccessMode{ReadWriteMany},
+			},
+		},
+		Templates: []Templatable{
+			&Container{
+				Name:  "main",
+				Image: "alpine",
+				VolumeMounts: []VolumeBuilder{
+					&PVCVolume{BaseVolume: BaseVolume{Name: "work", MountPath: "/work"}},
+				},
+			},
+		},
+	}
+	m, err := w.Build()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(m.Spec.VolumeClaimTemplates) != 2 {
+		t.Fatalf("pvcs = %d, want 2", len(m.Spec.VolumeClaimTemplates))
+	}
+	if m.Spec.VolumeClaimTemplates[0].Metadata.Name != "work" {
+		t.Errorf("pvc[0].name = %q", m.Spec.VolumeClaimTemplates[0].Metadata.Name)
+	}
+	if m.Spec.VolumeClaimTemplates[0].Spec.StorageClassName != "fast" {
+		t.Errorf("storageClass = %q", m.Spec.VolumeClaimTemplates[0].Spec.StorageClassName)
+	}
+	if m.Spec.VolumeClaimTemplates[1].Spec.Resources.Requests.Storage != "10Gi" {
+		t.Errorf("storage = %q", m.Spec.VolumeClaimTemplates[1].Spec.Resources.Requests.Storage)
+	}
+}
+
+// Cover Workflow.buildArguments with artifacts
+func TestWorkflowWithArgumentArtifacts(t *testing.T) {
+	w := &Workflow{
+		Name:       "with-art-args",
+		Entrypoint: "main",
+		ArgumentArtifacts: []ArtifactBuilder{
+			&S3Artifact{
+				Artifact: Artifact{Name: "input-data", Path: "/data"},
+				Bucket:   "my-bucket",
+				Key:      "input.csv",
+			},
+		},
+		Templates: []Templatable{&Container{Name: "main", Image: "alpine"}},
+	}
+	m, err := w.Build()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Spec.Arguments == nil {
+		t.Fatal("expected arguments")
+	}
+	if len(m.Spec.Arguments.Artifacts) != 1 {
+		t.Fatalf("artifact args = %d", len(m.Spec.Arguments.Artifacts))
+	}
+	if m.Spec.Arguments.Artifacts[0].S3 == nil {
+		t.Error("expected S3 artifact arg")
+	}
+}
+
+// Cover Workflow.buildMetrics
+func TestWorkflowWithMetrics(t *testing.T) {
+	w := &Workflow{
+		Name:       "with-metrics",
+		Entrypoint: "main",
+		Metrics: []Metric{
+			{
+				Name: "workflow_duration",
+				Help: "Duration of workflow",
+				Gauge: &Gauge{
+					Value:    "{{workflow.duration}}",
+					Realtime: ptrBool(true),
+				},
+			},
+		},
+		Templates: []Templatable{&Container{Name: "main", Image: "alpine"}},
+	}
+	m, err := w.Build()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Spec.Metrics == nil {
+		t.Fatal("expected metrics")
+	}
+	if len(m.Spec.Metrics.Prometheus) != 1 {
+		t.Fatalf("metrics = %d", len(m.Spec.Metrics.Prometheus))
+	}
+}
+
+// Cover Container.buildMetrics
+func TestContainerWithMetrics(t *testing.T) {
+	c := &Container{
+		Name:  "with-metrics",
+		Image: "alpine",
+		Metrics: []Metric{
+			{Name: "step_duration", Help: "Step duration", Counter: &Counter{Value: "1"}},
+		},
+	}
+	tpl, err := c.BuildTemplate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tpl.Metrics == nil || len(tpl.Metrics.Prometheus) != 1 {
+		t.Fatal("expected 1 metric")
+	}
+}
+
+// Cover Script.buildMetrics and buildMetadata
+func TestScriptWithMetricsAndMetadata(t *testing.T) {
+	s := &Script{
+		Name:        "with-meta",
+		Image:       "python:3.11",
+		Command:     []string{"python"},
+		Source:      "print('hello')",
+		Labels:      map[string]string{"team": "backend"},
+		Annotations: map[string]string{"note": "test"},
+		Metrics: []Metric{
+			{Name: "script_runs", Help: "count", Counter: &Counter{Value: "1"}},
+		},
+	}
+	tpl, err := s.BuildTemplate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tpl.Metadata == nil {
+		t.Fatal("expected metadata")
+	}
+	if tpl.Metadata.Labels["team"] != "backend" {
+		t.Errorf("label = %q", tpl.Metadata.Labels["team"])
+	}
+	if tpl.Metrics == nil {
+		t.Fatal("expected metrics")
+	}
+}
+
+// Cover Script.buildVolumeMounts
+func TestScriptWithVolumeMounts(t *testing.T) {
+	s := &Script{
+		Name:    "with-mounts",
+		Image:   "python:3.11",
+		Command: []string{"python"},
+		Source:  "print('hello')",
+		VolumeMounts: []VolumeBuilder{
+			&EmptyDirVolume{BaseVolume: BaseVolume{Name: "tmp", MountPath: "/tmp/work"}},
+		},
+	}
+	tpl, err := s.BuildTemplate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tpl.Script.VolumeMounts) != 1 {
+		t.Fatalf("mounts = %d", len(tpl.Script.VolumeMounts))
+	}
+}
+
+// Cover DAG.buildOutputs with artifacts
+func TestDAGWithInputAndOutputArtifacts(t *testing.T) {
+	dag := &DAG{
+		Name: "with-art-io",
+		InputArtifacts: []ArtifactBuilder{
+			&Artifact{Name: "input", Path: "/tmp/in"},
+		},
+		OutputArtifacts: []ArtifactBuilder{
+			&Artifact{Name: "output", Path: "/tmp/out"},
+		},
+	}
+	tpl, err := dag.BuildTemplate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tpl.Inputs == nil || len(tpl.Inputs.Artifacts) != 1 {
+		t.Fatal("expected 1 input artifact")
+	}
+	if tpl.Outputs == nil || len(tpl.Outputs.Artifacts) != 1 {
+		t.Fatal("expected 1 output artifact")
+	}
+}
+
+// Cover Steps.buildOutputs with artifacts
+func TestStepsWithOutputArtifacts(t *testing.T) {
+	steps := &Steps{
+		Name: "with-art-out",
+		OutputArtifacts: []ArtifactBuilder{
+			&Artifact{Name: "result", Path: "/tmp/result"},
+		},
+	}
+	tpl, err := steps.BuildTemplate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tpl.Outputs == nil || len(tpl.Outputs.Artifacts) != 1 {
+		t.Fatal("expected 1 output artifact")
+	}
+}
+
+// Cover Step with artifact arguments
+func TestStepWithArtifactArguments(t *testing.T) {
+	s := &Step{
+		Name:     "with-art-args",
+		Template: "process",
+		ArgumentArtifacts: []ArtifactBuilder{
+			&Artifact{Name: "data", From: "{{steps.gen.outputs.artifacts.output}}"},
+		},
+	}
+	m, err := s.BuildStep()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Arguments == nil || len(m.Arguments.Artifacts) != 1 {
+		t.Fatal("expected 1 artifact argument")
+	}
+}
+
+// Cover Task with artifact arguments
+func TestTaskWithArtifactArguments(t *testing.T) {
+	task := &Task{
+		Name:     "with-art-args",
+		Template: "process",
+		ArgumentArtifacts: []ArtifactBuilder{
+			&Artifact{Name: "data", From: "{{tasks.gen.outputs.artifacts.output}}"},
+		},
+	}
+	m, err := task.BuildDAGTask()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Arguments == nil || len(m.Arguments.Artifacts) != 1 {
+		t.Fatal("expected 1 artifact argument")
+	}
+}
+
+// Cover PVCVolume.BuildPVC default access modes
+func TestPVCVolumeDefaultAccessModes(t *testing.T) {
+	v := PVCVolume{
+		BaseVolume: BaseVolume{Name: "default-mode", MountPath: "/data"},
+		Size:       "1Gi",
+	}
+	pvc, err := v.BuildPVC()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pvc.Spec.AccessModes) != 1 || pvc.Spec.AccessModes[0] != "ReadWriteOnce" {
+		t.Errorf("default access modes = %v", pvc.Spec.AccessModes)
+	}
+}
+
+// Cover Container with output parameters and artifacts
+func TestContainerWithOutputs(t *testing.T) {
+	c := &Container{
+		Name:  "with-outputs",
+		Image: "alpine",
+		Outputs: []Parameter{
+			{Name: "result", ValueFrom: &ValueFrom{Path: "/tmp/result"}},
+		},
+		OutputArtifacts: []ArtifactBuilder{
+			&Artifact{Name: "logs", Path: "/tmp/logs"},
+		},
+	}
+	tpl, err := c.BuildTemplate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tpl.Outputs == nil {
+		t.Fatal("expected outputs")
+	}
+	if len(tpl.Outputs.Parameters) != 1 {
+		t.Errorf("output params = %d", len(tpl.Outputs.Parameters))
+	}
+	if len(tpl.Outputs.Artifacts) != 1 {
+		t.Errorf("output artifacts = %d", len(tpl.Outputs.Artifacts))
+	}
+}
+
+// Cover Workflow with retry strategy
+func TestWorkflowWithRetryStrategy(t *testing.T) {
+	limit := 5
+	w := &Workflow{
+		Name:       "with-retry",
+		Entrypoint: "main",
+		RetryStrategy: &RetryStrategy{
+			Limit:       &limit,
+			RetryPolicy: RetryAlways,
+		},
+		Templates: []Templatable{&Container{Name: "main", Image: "alpine"}},
+	}
+	m, err := w.Build()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Spec.RetryStrategy == nil {
+		t.Fatal("expected retry strategy")
+	}
+	if m.Spec.RetryStrategy.Limit != "5" {
+		t.Errorf("limit = %v, want \"5\"", m.Spec.RetryStrategy.Limit)
+	}
+}
+
+// --- Coverage final tests (consolidated from coverage_final_test.go) ---
+
+// Cover volume BuildVolume error paths (no-name failures)
+func TestHostPathVolumeNoNameFails(t *testing.T) {
+	v := HostPathVolume{Path: "/data"}
+	_, err := v.BuildVolume()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestSecretVolumeNoNameFails(t *testing.T) {
+	v := SecretVolume{SecretName: "s"}
+	_, err := v.BuildVolume()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestExistingVolumeNoNameFails(t *testing.T) {
+	v := ExistingVolume{ClaimName: "pvc"}
+	_, err := v.BuildVolume()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestPVCVolumeNoNameFails(t *testing.T) {
+	v := PVCVolume{Size: "1Gi"}
+	_, err := v.BuildVolume()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestPVCVolumeBuildPVCNoNameFails(t *testing.T) {
+	v := PVCVolume{Size: "1Gi"}
+	_, err := v.BuildPVC()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestNFSVolumeNoNameFails(t *testing.T) {
+	v := NFSVolume{Server: "nfs", Path: "/data"}
+	_, err := v.BuildVolume()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestConfigMapVolumeNoNameFails(t *testing.T) {
+	v := ConfigMapVolume{}
+	_, err := v.BuildVolume()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+// Cover Parameter.String success path
+func TestParameterStringSuccess(t *testing.T) {
+	p := Parameter{Name: "test", Value: ptrStr("hello")}
+	s, err := p.String()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s != "hello" {
+		t.Errorf("got %q", s)
+	}
+}
+
+// Cover service unmarshal error paths
+func TestServiceCreateWorkflowBadResponse(t *testing.T) {
+	svc := &client.WorkflowsService{
+		Host:      "https://argo.example.com",
+		Namespace: "default",
+		HTTPClient: &mockHTTPClient{
+			DoFunc: func(req *http.Request) (*http.Response, error) {
+				return mockResponse(200, "not-json-object"), nil
+			},
+		},
+	}
+	w := &Workflow{Name: "test", Entrypoint: "main", Templates: []Templatable{&Container{Name: "main", Image: "a"}}}
+	_, err := svc.CreateWorkflow(context.Background(), w)
+	if err == nil {
+		t.Fatal("expected unmarshal error")
+	}
+}
+
+func TestServiceListWorkflowsBadResponse(t *testing.T) {
+	svc := &client.WorkflowsService{
+		Host:      "https://argo.example.com",
+		Namespace: "default",
+		HTTPClient: &mockHTTPClient{
+			DoFunc: func(req *http.Request) (*http.Response, error) {
+				return mockResponse(200, "not-json"), nil
+			},
+		},
+	}
+	_, err := svc.ListWorkflows(context.Background(), "")
+	if err == nil {
+		t.Fatal("expected unmarshal error")
+	}
+}
+
+func TestServiceLintWorkflowBadResponse(t *testing.T) {
+	svc := &client.WorkflowsService{
+		Host:      "https://argo.example.com",
+		Namespace: "default",
+		HTTPClient: &mockHTTPClient{
+			DoFunc: func(req *http.Request) (*http.Response, error) {
+				return mockResponse(200, "bad"), nil
+			},
+		},
+	}
+	w := &Workflow{Name: "test", Entrypoint: "main", Templates: []Templatable{&Container{Name: "main", Image: "a"}}}
+	_, err := svc.LintWorkflow(context.Background(), w)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestServiceGetInfoBadResponse(t *testing.T) {
+	svc := &client.WorkflowsService{
+		Host: "https://argo.example.com",
+		HTTPClient: &mockHTTPClient{
+			DoFunc: func(req *http.Request) (*http.Response, error) {
+				return mockResponse(200, "bad"), nil
+			},
+		},
+	}
+	_, err := svc.GetInfo(context.Background())
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestServiceGetVersionBadResponse(t *testing.T) {
+	svc := &client.WorkflowsService{
+		Host: "https://argo.example.com",
+		HTTPClient: &mockHTTPClient{
+			DoFunc: func(req *http.Request) (*http.Response, error) {
+				return mockResponse(200, "bad"), nil
+			},
+		},
+	}
+	_, err := svc.GetVersion(context.Background())
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestServiceGetWorkflowBadResponse(t *testing.T) {
+	svc := &client.WorkflowsService{
+		Host:      "https://argo.example.com",
+		Namespace: "default",
+		HTTPClient: &mockHTTPClient{
+			DoFunc: func(req *http.Request) (*http.Response, error) {
+				return mockResponse(200, "bad"), nil
+			},
+		},
+	}
+	_, err := svc.GetWorkflow(context.Background(), "test", "")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+// Cover Steps.buildInputs/buildOutputs artifact paths
+func TestStepsWithInputArtifacts(t *testing.T) {
+	steps := &Steps{
+		Name: "with-art-in",
+		InputArtifacts: []ArtifactBuilder{
+			&Artifact{Name: "data", Path: "/tmp/data"},
+		},
+	}
+	tpl, err := steps.BuildTemplate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tpl.Inputs == nil || len(tpl.Inputs.Artifacts) != 1 {
+		t.Fatal("expected 1 input artifact")
+	}
+}
+
+// Cover DAG.buildInputs artifact path
+func TestDAGWithInputArtifacts(t *testing.T) {
+	dag := &DAG{
+		Name: "with-art-in",
+		InputArtifacts: []ArtifactBuilder{
+			&Artifact{Name: "data", Path: "/tmp/data"},
+		},
+	}
+	tpl, err := dag.BuildTemplate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tpl.Inputs == nil || len(tpl.Inputs.Artifacts) != 1 {
+		t.Fatal("expected 1 input artifact")
+	}
+}
+
+// Cover Script.buildInputs artifact path
+func TestScriptWithInputArtifacts(t *testing.T) {
+	s := &Script{
+		Name:    "with-art-in",
+		Image:   "python:3.11",
+		Command: []string{"python"},
+		Source:  "print('hi')",
+		InputArtifacts: []ArtifactBuilder{
+			&Artifact{Name: "model", Path: "/tmp/model.pkl"},
+		},
+	}
+	tpl, err := s.BuildTemplate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tpl.Inputs == nil || len(tpl.Inputs.Artifacts) != 1 {
+		t.Fatal("expected 1 input artifact")
+	}
+}
+
+// Cover ValidateResourceRequirements - limit-only validations
+func TestValidateResourceLimitOnlyInvalid(t *testing.T) {
+	err := ValidateResourceRequirements(ResourceRequirements{
+		Limits: ResourceList{CPU: "abc"},
+	})
+	if err == nil {
+		t.Fatal("expected error for invalid CPU limit")
+	}
+}
+
+func TestValidateResourceMemoryLimitOnlyInvalid(t *testing.T) {
+	err := ValidateResourceRequirements(ResourceRequirements{
+		Limits: ResourceList{Memory: "500m"},
+	})
+	if err == nil {
+		t.Fatal("expected error for invalid memory limit (decimal unit)")
+	}
+}
+
+func TestValidateResourceEphemeralLimitOnlyInvalid(t *testing.T) {
+	err := ValidateResourceRequirements(ResourceRequirements{
+		Limits: ResourceList{EphemeralStorage: "abc"},
+	})
+	if err == nil {
+		t.Fatal("expected error for invalid ephemeral limit")
+	}
+}
+
+func TestValidateResourceEphemeralRequestInvalid(t *testing.T) {
+	err := ValidateResourceRequirements(ResourceRequirements{
+		Requests: ResourceList{EphemeralStorage: "abc"},
+	})
+	if err == nil {
+		t.Fatal("expected error for invalid ephemeral request")
+	}
+}
+
+func TestValidateResourceEphemeralLimitInvalid(t *testing.T) {
+	err := ValidateResourceRequirements(ResourceRequirements{
+		Requests: ResourceList{EphemeralStorage: "1Gi"},
+		Limits:   ResourceList{EphemeralStorage: "abc"},
+	})
+	if err == nil {
+		t.Fatal("expected error for invalid ephemeral limit with valid request")
+	}
+}
