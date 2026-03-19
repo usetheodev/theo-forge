@@ -1,124 +1,12 @@
 package forge
 
 import (
-	"encoding/json"
-	"fmt"
-	"os"
-	"reflect"
+	"strings"
 	"testing"
 
+	"github.com/usetheo/theo/forge/expr"
 	"github.com/usetheo/theo/forge/model"
-	yamlconv "sigs.k8s.io/yaml"
 )
-
-// helpers are defined in other test files (ptrStr, ptrInt, ptrBool)
-
-// yamlToMap parses YAML string into a generic map for comparison.
-func yamlToMap(yamlStr string) (map[string]interface{}, error) {
-	jsonBytes, err := yamlconv.YAMLToJSON([]byte(yamlStr))
-	if err != nil {
-		return nil, err
-	}
-	var m map[string]interface{}
-	if err := json.Unmarshal(jsonBytes, &m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-// normalizeForComparison recursively normalizes a value for comparison.
-// Arrays of objects with a "name" field are sorted by name to make comparison order-independent.
-func normalizeForComparison(v interface{}) interface{} {
-	switch val := v.(type) {
-	case map[string]interface{}:
-		result := make(map[string]interface{}, len(val))
-		for k, v2 := range val {
-			result[k] = normalizeForComparison(v2)
-		}
-		return result
-	case []interface{}:
-		normalized := make([]interface{}, len(val))
-		for i, item := range val {
-			normalized[i] = normalizeForComparison(item)
-		}
-		// Sort arrays of objects with "name" key by the "name" value
-		if len(normalized) > 0 {
-			if _, ok := normalized[0].(map[string]interface{}); ok {
-				allHaveName := true
-				for _, item := range normalized {
-					m, ok := item.(map[string]interface{})
-					if !ok {
-						allHaveName = false
-						break
-					}
-					if _, has := m["name"]; !has {
-						allHaveName = false
-						break
-					}
-				}
-				if allHaveName {
-					// Sort by name
-					sorted := make([]interface{}, len(normalized))
-					copy(sorted, normalized)
-					for i := 0; i < len(sorted); i++ {
-						for j := i + 1; j < len(sorted); j++ {
-							nameI := fmt.Sprint(sorted[i].(map[string]interface{})["name"])
-							nameJ := fmt.Sprint(sorted[j].(map[string]interface{})["name"])
-							if nameI > nameJ {
-								sorted[i], sorted[j] = sorted[j], sorted[i]
-							}
-						}
-					}
-					return sorted
-				}
-			}
-		}
-		return normalized
-	default:
-		return v
-	}
-}
-
-// semanticEqual compares two YAML strings semantically (ignoring field order and template ordering).
-func semanticEqual(got, want string) (bool, error) {
-	gotMap, err := yamlToMap(got)
-	if err != nil {
-		return false, fmt.Errorf("parsing got: %w", err)
-	}
-	wantMap, err := yamlToMap(want)
-	if err != nil {
-		return false, fmt.Errorf("parsing want: %w", err)
-	}
-	gotNorm := normalizeForComparison(gotMap)
-	wantNorm := normalizeForComparison(wantMap)
-	return reflect.DeepEqual(gotNorm, wantNorm), nil
-}
-
-// readExpectedYAML reads the Hera-generated YAML for comparison.
-func readExpectedYAML(name string) (string, error) {
-	path := fmt.Sprintf("hera/examples/workflows/upstream/%s.yaml", name)
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return "", err
-	}
-	return string(data), nil
-}
-
-// assertYAMLEqual compares the built YAML with the expected Hera YAML.
-func assertYAMLEqual(t *testing.T, name string, gotYAML string) {
-	t.Helper()
-	wantYAML, err := readExpectedYAML(name)
-	if err != nil {
-		t.Fatalf("read expected YAML for %s: %v", name, err)
-	}
-	equal, err := semanticEqual(gotYAML, wantYAML)
-	if err != nil {
-		t.Fatalf("compare YAML for %s: %v", name, err)
-	}
-	if !equal {
-		t.Errorf("YAML mismatch for %s\n\nGot:\n%s\n\nWant:\n%s", name, gotYAML, wantYAML)
-	}
-}
 
 // === BUILDERS ===
 
@@ -1141,4 +1029,667 @@ func TestBuildPodGcStrategy(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertYAMLEqual(t, "pod-gc-strategy", yaml)
+}
+
+// --- Example tests (consolidated from example_test.go) ---
+
+// TestExampleDiamondDAG builds a complete diamond DAG workflow and validates YAML.
+func TestExampleDiamondDAG(t *testing.T) {
+	echoTpl := &Container{
+		Name:    "echo",
+		Image:   "alpine:3.18",
+		Command: []string{"echo"},
+		Args:    []string{expr.InputParam("msg")},
+		Inputs:  []Parameter{{Name: "msg"}},
+	}
+
+	dag := &DAG{Name: "diamond"}
+	A := &Task{Name: "A", Template: "echo", Arguments: []Parameter{{Name: "msg", Value: ptrStr("Task A")}}}
+	B := &Task{Name: "B", Template: "echo", Arguments: []Parameter{{Name: "msg", Value: ptrStr("Task B")}}}
+	C := &Task{Name: "C", Template: "echo", Arguments: []Parameter{{Name: "msg", Value: ptrStr("Task C")}}}
+	D := &Task{Name: "D", Template: "echo", Arguments: []Parameter{{Name: "msg", Value: ptrStr("Task D")}}}
+
+	A.Then(B)
+	A.Then(C)
+	B.Then(D)
+	C.Then(D)
+	dag.AddTasks(A, B, C, D)
+
+	w := &Workflow{
+		GenerateName: "diamond-",
+		Namespace:    "argo",
+		Entrypoint:   "diamond",
+		Templates:    []Templatable{echoTpl, dag},
+	}
+
+	y, err := w.ToYAML()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expected := []string{
+		"apiVersion: argoproj.io/v1alpha1",
+		"kind: Workflow",
+		"generateName: diamond-",
+		"namespace: argo",
+		"entrypoint: diamond",
+		"name: echo",
+		"image: alpine:3.18",
+		"name: diamond",
+		"name: A",
+		"name: B",
+		"name: C",
+		"name: D",
+		"depends: A",
+	}
+	for _, s := range expected {
+		if !strings.Contains(y, s) {
+			t.Errorf("YAML missing: %q", s)
+		}
+	}
+}
+
+// TestExampleCoinflip builds a coinflip workflow with conditionals.
+func TestExampleCoinflip(t *testing.T) {
+	flip := &Script{
+		Name:    "flip-coin",
+		Image:   "python:3.11-alpine",
+		Command: []string{"python"},
+		Source: `import random
+result = "heads" if random.randint(0, 1) == 0 else "tails"
+print(result)`,
+	}
+
+	heads := &Container{
+		Name:    "heads",
+		Image:   "alpine:3.18",
+		Command: []string{"echo"},
+		Args:    []string{"it was heads"},
+	}
+
+	tails := &Container{
+		Name:    "tails",
+		Image:   "alpine:3.18",
+		Command: []string{"echo"},
+		Args:    []string{"it was tails"},
+	}
+
+	steps := &Steps{Name: "coinflip"}
+	steps.AddSequentialStep(&Step{Name: "flip", Template: "flip-coin"})
+	steps.AddParallelGroup(
+		&Step{Name: "heads", Template: "heads", When: "{{steps.flip.outputs.result}} == heads"},
+		&Step{Name: "tails", Template: "tails", When: "{{steps.flip.outputs.result}} == tails"},
+	)
+
+	w := &Workflow{
+		GenerateName: "coinflip-",
+		Entrypoint:   "coinflip",
+		Templates:    []Templatable{flip, heads, tails, steps},
+	}
+
+	y, err := w.ToYAML()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, s := range []string{"flip-coin", "heads", "tails", "coinflip", "when:"} {
+		if !strings.Contains(y, s) {
+			t.Errorf("YAML missing: %q", s)
+		}
+	}
+}
+
+// TestExampleParameterPassing builds a workflow that passes outputs between steps.
+func TestExampleParameterPassing(t *testing.T) {
+	generate := &Script{
+		Name:    "generate",
+		Image:   "alpine:3.18",
+		Command: []string{"sh", "-c"},
+		Source:  `echo "42" > /tmp/result`,
+		Outputs: []Parameter{{Name: "result", ValueFrom: &ValueFrom{Path: "/tmp/result"}}},
+	}
+
+	consume := &Container{
+		Name:    "consume",
+		Image:   "alpine:3.18",
+		Command: []string{"echo"},
+		Args:    []string{expr.InputParam("msg")},
+		Inputs:  []Parameter{{Name: "msg"}},
+	}
+
+	dag := &DAG{Name: "main"}
+	genTask := &Task{Name: "generate", Template: "generate"}
+	consumeTask := &Task{
+		Name:     "consume",
+		Template: "consume",
+		Arguments: []Parameter{
+			{Name: "msg", Value: ptrStr(expr.TaskOutputParam("generate", "result"))},
+		},
+	}
+	genTask.Then(consumeTask)
+	dag.AddTasks(genTask, consumeTask)
+
+	w := &Workflow{
+		GenerateName: "param-passing-",
+		Entrypoint:   "main",
+		Templates:    []Templatable{generate, consume, dag},
+	}
+
+	y, err := w.ToYAML()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !strings.Contains(y, "{{tasks.generate.outputs.parameters.result}}") {
+		t.Error("YAML missing task output reference")
+	}
+}
+
+// TestExampleArtifactPassing builds a workflow with artifact passing.
+func TestExampleArtifactPassing(t *testing.T) {
+	generate := &Script{
+		Name:    "generate",
+		Image:   "alpine:3.18",
+		Command: []string{"sh", "-c"},
+		Source:  `echo "hello world" > /tmp/output.txt`,
+		OutputArtifacts: []ArtifactBuilder{
+			&Artifact{Name: "output-file", Path: "/tmp/output.txt"},
+		},
+	}
+
+	consume := &Container{
+		Name:    "consume",
+		Image:   "alpine:3.18",
+		Command: []string{"cat"},
+		Args:    []string{"/tmp/input.txt"},
+	}
+
+	w := &Workflow{
+		GenerateName: "artifacts-",
+		Entrypoint:   "main",
+		Templates: []Templatable{
+			generate,
+			consume,
+			&DAG{
+				Name: "main",
+				Tasks: []*Task{
+					{Name: "gen", Template: "generate"},
+					{Name: "use", Template: "consume", Depends: "gen"},
+				},
+			},
+		},
+	}
+
+	y, err := w.ToYAML()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !strings.Contains(y, "output-file") {
+		t.Error("YAML missing artifact name")
+	}
+}
+
+// TestExampleCronWorkflow builds a scheduled workflow.
+func TestExampleCronWorkflow(t *testing.T) {
+	cw := &CronWorkflow{
+		Name:              "hourly-cleanup",
+		Namespace:         "ops",
+		Schedule:          "0 * * * *",
+		Timezone:          "UTC",
+		ConcurrencyPolicy: "Forbid",
+		Entrypoint:        "cleanup",
+		Templates: []Templatable{
+			&Container{
+				Name:    "cleanup",
+				Image:   "alpine:3.18",
+				Command: []string{"sh", "-c"},
+				Args:    []string{"echo 'cleaning up...'"},
+			},
+		},
+	}
+
+	y, err := cw.ToYAML()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, s := range []string{
+		"kind: CronWorkflow",
+		"schedule: 0 * * * *",
+		"timezone: UTC",
+		"concurrencyPolicy: Forbid",
+		"name: hourly-cleanup",
+		"namespace: ops",
+	} {
+		if !strings.Contains(y, s) {
+			t.Errorf("YAML missing: %q", s)
+		}
+	}
+}
+
+// TestExampleWorkflowTemplateRef builds a workflow that references a WorkflowTemplate.
+func TestExampleWorkflowTemplateRef(t *testing.T) {
+	// First, define the reusable template
+	wt := &WorkflowTemplate{
+		Name:       "echo-template",
+		Namespace:  "default",
+		Entrypoint: "echo",
+		Templates: []Templatable{
+			&Container{
+				Name:    "echo",
+				Image:   "alpine:3.18",
+				Command: []string{"echo"},
+				Args:    []string{expr.InputParam("msg")},
+				Inputs:  []Parameter{{Name: "msg"}},
+			},
+		},
+	}
+
+	wtYAML, err := wt.ToYAML()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(wtYAML, "kind: WorkflowTemplate") {
+		t.Error("missing kind in WorkflowTemplate YAML")
+	}
+
+	// Then, use it in a workflow via templateRef
+	dag := &DAG{Name: "main"}
+	dag.AddTask(&Task{
+		Name: "call-echo",
+		TemplateRef: &TemplateRef{
+			Name:     "echo-template",
+			Template: "echo",
+		},
+		Arguments: []Parameter{{Name: "msg", Value: ptrStr("Hello from ref!")}},
+	})
+
+	w := &Workflow{
+		Name:       "use-template-ref",
+		Entrypoint: "main",
+		Templates:  []Templatable{dag},
+	}
+
+	y, err := w.ToYAML()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !strings.Contains(y, "templateRef:") {
+		t.Error("YAML missing templateRef")
+	}
+	if !strings.Contains(y, "name: echo-template") {
+		t.Error("YAML missing template ref name")
+	}
+}
+
+// TestExampleWithVolumesAndSecrets builds a complete workflow with volumes.
+func TestExampleWithVolumesAndSecrets(t *testing.T) {
+	w := &Workflow{
+		Name:       "with-volumes",
+		Entrypoint: "main",
+		Volumes: []VolumeBuilder{
+			&SecretVolume{BaseVolume: BaseVolume{Name: "creds", MountPath: "/etc/creds"}, SecretName: "app-creds"},
+			&EmptyDirVolume{BaseVolume: BaseVolume{Name: "workspace", MountPath: "/workspace"}},
+		},
+		Templates: []Templatable{
+			&Container{
+				Name:    "main",
+				Image:   "alpine:3.18",
+				Command: []string{"sh", "-c"},
+				Args:    []string{"cat /etc/creds/password && ls /workspace"},
+				Env: []EnvBuilder{
+					SecretEnv{Name: "DB_PASS", SecretName: "db-creds", SecretKey: "password"},
+				},
+				VolumeMounts: []VolumeBuilder{
+					&SecretVolume{BaseVolume: BaseVolume{Name: "creds", MountPath: "/etc/creds"}},
+					&EmptyDirVolume{BaseVolume: BaseVolume{Name: "workspace", MountPath: "/workspace"}},
+				},
+			},
+		},
+	}
+
+	y, err := w.ToYAML()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, s := range []string{"secretName: app-creds", "emptyDir:", "mountPath: /etc/creds", "mountPath: /workspace"} {
+		if !strings.Contains(y, s) {
+			t.Errorf("YAML missing: %q", s)
+		}
+	}
+}
+
+// --- Advanced example tests (consolidated from example_advanced_test.go) ---
+
+// TestExampleDefaultParameterOverwrite replicates Hera's default-parameters.yaml
+func TestExampleDefaultParameterOverwrite(t *testing.T) {
+	generator := &Script{
+		Name:    "generator",
+		Image:   "python:3.10",
+		Command: []string{"python"},
+		Source:  "print('Another message for the world!')",
+	}
+
+	consumer := &Script{
+		Name:    "consumer",
+		Image:   "python:3.10",
+		Command: []string{"python"},
+		Source:  "print('{{inputs.parameters.message}}')",
+		Inputs: []Parameter{
+			{Name: "message", Default: ptrStr("Hello, world!")},
+			{Name: "foo", Default: ptrStr("42")},
+		},
+	}
+
+	dag := &DAG{Name: "d"}
+	genTask := &Task{Name: "generator", Template: "generator"}
+	consumeDefault := &Task{Name: "consume-default", Template: "consumer"}
+	consumeArg := &Task{
+		Name:     "consume-argument",
+		Template: "consumer",
+		Arguments: []Parameter{
+			{Name: "message", Value: ptrStr(genTask.GetOutputResult())},
+		},
+	}
+	genTask.Then(consumeDefault)
+	genTask.Then(consumeArg)
+	dag.AddTasks(genTask, consumeDefault, consumeArg)
+
+	w := &Workflow{
+		GenerateName: "default-param-overwrite-",
+		Entrypoint:   "d",
+		Templates:    []Templatable{dag, generator, consumer},
+	}
+
+	y, err := w.ToYAML()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify key structural elements
+	for _, s := range []string{
+		"generateName: default-param-overwrite-",
+		"entrypoint: d",
+		"name: generator",
+		"name: consumer",
+		"name: consume-default",
+		"name: consume-argument",
+		"default: Hello, world!",
+		"default: \"42\"",
+	} {
+		if !strings.Contains(y, s) {
+			t.Errorf("YAML missing: %q\n\nFull YAML:\n%s", s, y)
+		}
+	}
+}
+
+// TestExampleOutputParameterPassing replicates Hera's output-parameters.yaml
+func TestExampleOutputParameterPassing(t *testing.T) {
+	outScript := &Script{
+		Name:    "out",
+		Image:   "python:3.10",
+		Command: []string{"python"},
+		Source:  "with open('/test', 'w') as f:\n    f.write('test')",
+		Outputs: []Parameter{
+			{Name: "a", ValueFrom: &ValueFrom{Path: "/test"}},
+		},
+	}
+
+	inScript := &Script{
+		Name:    "in-",
+		Image:   "python:3.10",
+		Command: []string{"python"},
+		Source:  "print('{{inputs.parameters.a}}')",
+		Inputs:  []Parameter{{Name: "a"}},
+	}
+
+	dag := &DAG{Name: "d"}
+	outTask := &Task{Name: "out", Template: "out"}
+	inTask := &Task{
+		Name:     "in-",
+		Template: "in-",
+		Arguments: []Parameter{
+			{Name: "a", Value: ptrStr(outTask.GetOutputParameter("a"))},
+		},
+	}
+	outTask.Then(inTask)
+	dag.AddTasks(outTask, inTask)
+
+	w := &Workflow{
+		GenerateName: "script-output-param-passing-",
+		Entrypoint:   "d",
+		Templates:    []Templatable{dag, outScript, inScript},
+	}
+
+	y, err := w.ToYAML()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify the output parameter reference is correct
+	if !strings.Contains(y, "{{tasks.out.outputs.parameters.a}}") {
+		t.Errorf("YAML missing output parameter reference\n\n%s", y)
+	}
+	// Verify outputs section
+	if !strings.Contains(y, "valueFrom:") {
+		t.Error("YAML missing valueFrom")
+	}
+	if !strings.Contains(y, "path: /test") {
+		t.Error("YAML missing path: /test")
+	}
+}
+
+// TestExampleWithItemsLoop replicates Hera's loop patterns
+func TestExampleWithItemsLoop(t *testing.T) {
+	echo := &Container{
+		Name:    "echo",
+		Image:   "alpine:3.18",
+		Command: []string{"echo"},
+		Args:    []string{"{{inputs.parameters.message}}"},
+		Inputs:  []Parameter{{Name: "message"}},
+	}
+
+	dag := &DAG{Name: "main"}
+	loopTask := &Task{
+		Name:     "echo-loop",
+		Template: "echo",
+		Arguments: []Parameter{
+			{Name: "message", Value: ptrStr("{{item}}")},
+		},
+		WithItems: []interface{}{"hello", "world", "foo"},
+	}
+	dag.AddTask(loopTask)
+
+	w := &Workflow{
+		GenerateName: "loops-",
+		Entrypoint:   "main",
+		Templates:    []Templatable{echo, dag},
+	}
+
+	y, err := w.ToYAML()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !strings.Contains(y, "withItems:") {
+		t.Error("YAML missing withItems")
+	}
+	if !strings.Contains(y, "hello") || !strings.Contains(y, "world") {
+		t.Error("YAML missing items")
+	}
+}
+
+// TestExampleWithParamLoop tests withParam-based fan-out
+func TestExampleWithParamLoop(t *testing.T) {
+	generate := &Script{
+		Name:    "generate-list",
+		Image:   "python:3.11",
+		Command: []string{"python"},
+		Source:  `import json; print(json.dumps(["a", "b", "c"]))`,
+	}
+
+	process := &Container{
+		Name:    "process",
+		Image:   "alpine:3.18",
+		Command: []string{"echo"},
+		Args:    []string{"{{inputs.parameters.item}}"},
+		Inputs:  []Parameter{{Name: "item"}},
+	}
+
+	dag := &DAG{Name: "main"}
+	genTask := &Task{Name: "gen", Template: "generate-list"}
+	processTask := &Task{
+		Name:     "process",
+		Template: "process",
+		Arguments: []Parameter{
+			{Name: "item", Value: ptrStr("{{item}}")},
+		},
+		WithParam: genTask.GetOutputResult(),
+	}
+	genTask.Then(processTask)
+	dag.AddTasks(genTask, processTask)
+
+	w := &Workflow{
+		GenerateName: "param-loop-",
+		Entrypoint:   "main",
+		Templates:    []Templatable{generate, process, dag},
+	}
+
+	y, err := w.ToYAML()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !strings.Contains(y, "withParam:") {
+		t.Error("YAML missing withParam")
+	}
+	if !strings.Contains(y, "{{tasks.gen.outputs.result}}") {
+		t.Error("YAML missing result reference in withParam")
+	}
+}
+
+// TestExampleRetryWithBackoff tests retry configuration
+func TestExampleRetryWithBackoff(t *testing.T) {
+	limit := 3
+	factor := 2
+	w := &Workflow{
+		GenerateName: "retry-",
+		Entrypoint:   "main",
+		Templates: []Templatable{
+			&Script{
+				Name:    "main",
+				Image:   "python:3.11",
+				Command: []string{"python"},
+				Source:  "import random; assert random.random() > 0.5",
+				RetryStrategy: &RetryStrategy{
+					Limit:       &limit,
+					RetryPolicy: RetryOnFailure,
+					Backoff: &Backoff{
+						Duration:    "5s",
+						Factor:      &factor,
+						MaxDuration: "1m",
+					},
+				},
+			},
+		},
+	}
+
+	y, err := w.ToYAML()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, s := range []string{"retryStrategy:", "retryPolicy: OnFailure", "duration: 5s", "maxDuration: 1m"} {
+		if !strings.Contains(y, s) {
+			t.Errorf("YAML missing: %q", s)
+		}
+	}
+}
+
+// TestExampleSuspendApprovalGate tests manual approval pattern
+func TestExampleSuspendApprovalGate(t *testing.T) {
+	steps := &Steps{Name: "approval-flow"}
+	steps.AddSequentialStep(&Step{Name: "deploy-staging", Template: "deploy"})
+	steps.AddSequentialStep(&Step{Name: "wait-approval", Template: "approve"})
+	steps.AddSequentialStep(&Step{Name: "deploy-prod", Template: "deploy"})
+
+	w := &Workflow{
+		Name:       "approval-gate",
+		Entrypoint: "approval-flow",
+		Templates: []Templatable{
+			&Container{Name: "deploy", Image: "alpine", Command: []string{"echo"}, Args: []string{"deploying..."}},
+			&Suspend{Name: "approve"},
+			steps,
+		},
+	}
+
+	y, err := w.ToYAML()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !strings.Contains(y, "suspend:") {
+		t.Error("YAML missing suspend template")
+	}
+	if !strings.Contains(y, "deploy-staging") || !strings.Contains(y, "deploy-prod") {
+		t.Error("YAML missing step names")
+	}
+}
+
+// TestExampleMultiClusterTemplateRef tests referencing ClusterWorkflowTemplate
+func TestExampleMultiClusterTemplateRef(t *testing.T) {
+	// Define cluster-wide template
+	cwt := &ClusterWorkflowTemplate{
+		Name:       "shared-build",
+		Entrypoint: "build",
+		Templates: []Templatable{
+			&Container{
+				Name:    "build",
+				Image:   "golang:1.22",
+				Command: []string{"go"},
+				Args:    []string{"build", "./..."},
+				Inputs:  []Parameter{{Name: "repo"}},
+			},
+		},
+	}
+	cwtYAML, err := cwt.ToYAML()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(cwtYAML, "kind: ClusterWorkflowTemplate") {
+		t.Error("CWT YAML missing kind")
+	}
+
+	// Use it via templateRef
+	dag := &DAG{Name: "pipeline"}
+	dag.AddTask(&Task{
+		Name: "build",
+		TemplateRef: &TemplateRef{
+			Name:     "shared-build",
+			Template: "build",
+		},
+		Arguments: []Parameter{
+			{Name: "repo", Value: ptrStr("https://github.com/example/app.git")},
+		},
+	})
+
+	w := &Workflow{
+		GenerateName: "ci-",
+		Entrypoint:   "pipeline",
+		Templates:    []Templatable{dag},
+	}
+
+	y, err := w.ToYAML()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(y, "templateRef:") {
+		t.Error("YAML missing templateRef")
+	}
+	if !strings.Contains(y, "name: shared-build") {
+		t.Error("YAML missing CWT reference")
+	}
 }
