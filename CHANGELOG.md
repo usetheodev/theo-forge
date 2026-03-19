@@ -47,10 +47,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Shared build helpers (`build_helpers.go`) centralizing input/output/env/volume/metadata/metrics building
 
 ### Changed
+<<<<<<< HEAD
 - Root package serialization methods (`ToYAML`, `ToJSON`, `ToDict`, `FromYAML`, `FromJSON`, `ToFile`, `FromFile`) now delegate to `serialize/` package
 - Root package validation functions (`ValidateBinaryUnit`, `ConvertDecimalUnit`, etc.) now delegate to `validate/` package
 - Root package `GlobalConfig`, `NewConfig`, `GetGlobalConfig` now delegate to `config/` package
 - `resource_template.go` and `container_set.go` now use explicit `model.` prefix instead of type aliases
+=======
+>>>>>>> 5770a1b1e275d02305acbc35557fbe55ee0feb8e
 - `GlobalConfig` hooks are now wired into the `Build()` pipeline for `Workflow`, `WorkflowTemplate`, `ClusterWorkflowTemplate`, and `CronWorkflow`
 - `FormatToken` on `WorkflowsService` is now exported (was `formatToken`)
 
@@ -59,9 +62,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - `ContainerSet.BuildTemplate()` now correctly assigns containers and volume mounts to the returned `TemplateModel`
 
 ### Removed
+<<<<<<< HEAD
 - **BREAKING:** ~70 internal type aliases from `aliases.go` (e.g., `forge.TemplateModel`, `forge.WorkflowModel`, `forge.ContainerModel`) — use `forge/model` package directly
 - **BREAKING:** Client type re-exports (`forge.WorkflowsService`, `forge.APIError`, `forge.HTTPClient`) — use `forge/client` package directly
 - **BREAKING:** Expression type/function re-exports (`forge.Expr`, `forge.E`, `forge.C`, `forge.InputParam`, etc.) — use `forge/expr` package directly
 - **BREAKING:** Re-exported functions (`forge.ParseImagePullPolicy`, `forge.ParseWorkflowStatus`, `forge.NewWorkflowsService`) — use their original packages
+=======
+>>>>>>> 5770a1b1e275d02305acbc35557fbe55ee0feb8e
 - Duplicate type definitions from root package: `RetryPolicy`, `Backoff`, `RetryStrategyModel`, `AccessMode`, `ArchiveStrategy`, `SecretKeySelector`, all `*VolumeModel`, `*ArtifactModel`, `EnvVarModel`, `HTTPModel`, `HTTPHeader`, `ContainerSetModel` — these now live exclusively in `model/` and are re-exported via type aliases
 - Copy-pasted `buildInputs`/`buildOutputs`/`buildEnv`/`buildVolumeMounts`/`buildMetadata`/`buildMetrics` methods from `Container`, `Script`, `DAG`, `Steps` — replaced by shared helpers
