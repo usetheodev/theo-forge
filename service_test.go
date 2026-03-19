@@ -10,6 +10,9 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/usetheo/theo/forge/client"
+	"github.com/usetheo/theo/forge/model"
 )
 
 // mockHTTPClient is a mock HTTP client for testing.
@@ -31,7 +34,7 @@ func mockResponse(statusCode int, body interface{}) *http.Response {
 }
 
 func TestNewWorkflowsService(t *testing.T) {
-	svc := NewWorkflowsService("https://argo.example.com", "my-token", "default")
+	svc := client.NewWorkflowsService("https://argo.example.com", "my-token", "default")
 	if svc.Host != "https://argo.example.com" {
 		t.Errorf("host = %q", svc.Host)
 	}
@@ -55,8 +58,8 @@ func TestServiceTokenFormatting(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := &WorkflowsService{Token: tt.token}
-			got := svc.formatToken()
+			svc := &client.WorkflowsService{Token: tt.token}
+			got := svc.FormatToken()
 			if got != tt.want {
 				t.Errorf("got %q, want %q", got, tt.want)
 			}
@@ -65,13 +68,13 @@ func TestServiceTokenFormatting(t *testing.T) {
 }
 
 func TestServiceCreateWorkflow(t *testing.T) {
-	expectedModel := WorkflowModel{
+	expectedModel := model.WorkflowModel{
 		APIVersion: DefaultAPIVersion,
 		Kind:       DefaultKind,
-		Metadata:   WorkflowMetadata{Name: "created-workflow"},
+		Metadata:   model.WorkflowMetadata{Name: "created-workflow"},
 	}
 
-	svc := &WorkflowsService{
+	svc := &client.WorkflowsService{
 		Host:      "https://argo.example.com",
 		Token:     "test-token",
 		Namespace: "default",
@@ -110,7 +113,7 @@ func TestServiceCreateWorkflow(t *testing.T) {
 }
 
 func TestServiceCreateWorkflowUsesWorkflowNamespace(t *testing.T) {
-	svc := &WorkflowsService{
+	svc := &client.WorkflowsService{
 		Host:      "https://argo.example.com",
 		Namespace: "default",
 		HTTPClient: &mockHTTPClient{
@@ -118,7 +121,7 @@ func TestServiceCreateWorkflowUsesWorkflowNamespace(t *testing.T) {
 				if req.URL.Path != "/api/v1/workflows/custom-ns" {
 					t.Errorf("path = %q, want /api/v1/workflows/custom-ns", req.URL.Path)
 				}
-				return mockResponse(200, WorkflowModel{}), nil
+				return mockResponse(200, model.WorkflowModel{}), nil
 			},
 		},
 	}
@@ -133,13 +136,13 @@ func TestServiceCreateWorkflowUsesWorkflowNamespace(t *testing.T) {
 }
 
 func TestServiceGetWorkflow(t *testing.T) {
-	expectedModel := WorkflowModel{
+	expectedModel := model.WorkflowModel{
 		APIVersion: DefaultAPIVersion,
 		Kind:       DefaultKind,
-		Metadata:   WorkflowMetadata{Name: "my-workflow"},
+		Metadata:   model.WorkflowMetadata{Name: "my-workflow"},
 	}
 
-	svc := &WorkflowsService{
+	svc := &client.WorkflowsService{
 		Host:      "https://argo.example.com",
 		Namespace: "default",
 		HTTPClient: &mockHTTPClient{
@@ -165,7 +168,7 @@ func TestServiceGetWorkflow(t *testing.T) {
 }
 
 func TestServiceDeleteWorkflow(t *testing.T) {
-	svc := &WorkflowsService{
+	svc := &client.WorkflowsService{
 		Host:      "https://argo.example.com",
 		Namespace: "default",
 		HTTPClient: &mockHTTPClient{
@@ -188,14 +191,14 @@ func TestServiceDeleteWorkflow(t *testing.T) {
 }
 
 func TestServiceListWorkflows(t *testing.T) {
-	listResp := ListWorkflowsResponse{
-		Items: []WorkflowModel{
-			{Metadata: WorkflowMetadata{Name: "wf-1"}},
-			{Metadata: WorkflowMetadata{Name: "wf-2"}},
+	listResp := client.ListWorkflowsResponse{
+		Items: []model.WorkflowModel{
+			{Metadata: model.WorkflowMetadata{Name: "wf-1"}},
+			{Metadata: model.WorkflowMetadata{Name: "wf-2"}},
 		},
 	}
 
-	svc := &WorkflowsService{
+	svc := &client.WorkflowsService{
 		Host:      "https://argo.example.com",
 		Namespace: "default",
 		HTTPClient: &mockHTTPClient{
@@ -221,7 +224,7 @@ func TestServiceListWorkflows(t *testing.T) {
 }
 
 func TestServiceLintWorkflow(t *testing.T) {
-	svc := &WorkflowsService{
+	svc := &client.WorkflowsService{
 		Host:      "https://argo.example.com",
 		Namespace: "default",
 		HTTPClient: &mockHTTPClient{
@@ -229,7 +232,7 @@ func TestServiceLintWorkflow(t *testing.T) {
 				if req.URL.Path != "/api/v1/workflows/default/lint" {
 					t.Errorf("path = %q", req.URL.Path)
 				}
-				return mockResponse(200, WorkflowModel{Metadata: WorkflowMetadata{Name: "linted"}}), nil
+				return mockResponse(200, model.WorkflowModel{Metadata: model.WorkflowMetadata{Name: "linted"}}), nil
 			},
 		},
 	}
@@ -250,7 +253,7 @@ func TestServiceLintWorkflow(t *testing.T) {
 }
 
 func TestServiceAPIError(t *testing.T) {
-	svc := &WorkflowsService{
+	svc := &client.WorkflowsService{
 		Host:      "https://argo.example.com",
 		Namespace: "default",
 		HTTPClient: &mockHTTPClient{
@@ -264,7 +267,7 @@ func TestServiceAPIError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	var apiErr *APIError
+	var apiErr *client.APIError
 	if !errors.As(err, &apiErr) {
 		t.Fatalf("expected APIError, got %T: %v", err, err)
 	}
@@ -274,7 +277,7 @@ func TestServiceAPIError(t *testing.T) {
 }
 
 func TestServiceNetworkError(t *testing.T) {
-	svc := &WorkflowsService{
+	svc := &client.WorkflowsService{
 		Host:      "https://argo.example.com",
 		Namespace: "default",
 		HTTPClient: &mockHTTPClient{
@@ -294,7 +297,7 @@ func TestServiceNetworkError(t *testing.T) {
 }
 
 func TestServiceGetInfo(t *testing.T) {
-	svc := &WorkflowsService{
+	svc := &client.WorkflowsService{
 		Host: "https://argo.example.com",
 		HTTPClient: &mockHTTPClient{
 			DoFunc: func(req *http.Request) (*http.Response, error) {
@@ -316,7 +319,7 @@ func TestServiceGetInfo(t *testing.T) {
 }
 
 func TestServiceHostTrailingSlash(t *testing.T) {
-	svc := NewWorkflowsService("https://argo.example.com/", "token", "ns")
+	svc := client.NewWorkflowsService("https://argo.example.com/", "token", "ns")
 	if svc.Host != "https://argo.example.com" {
 		t.Errorf("host = %q, trailing slash should be removed", svc.Host)
 	}

@@ -1,40 +1,10 @@
 package forge
 
-// EnvVarModel is the serializable K8s EnvVar.
-type EnvVarModel struct {
-	Name      string          `json:"name" yaml:"name"`
-	Value     string          `json:"value,omitempty" yaml:"value,omitempty"`
-	ValueFrom *EnvVarSource   `json:"valueFrom,omitempty" yaml:"valueFrom,omitempty"`
-}
-
-// EnvVarSource represents a source for an environment variable's value.
-type EnvVarSource struct {
-	SecretKeyRef    *KeySelector    `json:"secretKeyRef,omitempty" yaml:"secretKeyRef,omitempty"`
-	ConfigMapKeyRef *KeySelector    `json:"configMapKeyRef,omitempty" yaml:"configMapKeyRef,omitempty"`
-	FieldRef        *FieldSelector  `json:"fieldRef,omitempty" yaml:"fieldRef,omitempty"`
-	ResourceFieldRef *ResourceFieldSelector `json:"resourceFieldRef,omitempty" yaml:"resourceFieldRef,omitempty"`
-}
-
-type KeySelector struct {
-	Name     string `json:"name" yaml:"name"`
-	Key      string `json:"key" yaml:"key"`
-	Optional *bool  `json:"optional,omitempty" yaml:"optional,omitempty"`
-}
-
-type FieldSelector struct {
-	FieldPath  string `json:"fieldPath" yaml:"fieldPath"`
-	APIVersion string `json:"apiVersion,omitempty" yaml:"apiVersion,omitempty"`
-}
-
-type ResourceFieldSelector struct {
-	Resource      string `json:"resource" yaml:"resource"`
-	ContainerName string `json:"containerName,omitempty" yaml:"containerName,omitempty"`
-	Divisor       string `json:"divisor,omitempty" yaml:"divisor,omitempty"`
-}
+import "github.com/usetheo/theo/forge/model"
 
 // EnvBuilder is the interface for types that build EnvVarModel.
 type EnvBuilder interface {
-	Build() EnvVarModel
+	Build() model.EnvVarModel
 }
 
 // Env is a plain environment variable with a literal value.
@@ -43,8 +13,9 @@ type Env struct {
 	Value string
 }
 
-func (e Env) Build() EnvVarModel {
-	return EnvVarModel{Name: e.Name, Value: e.Value}
+func (e Env) Build() model.EnvVarModel {
+	v := e.Value
+	return model.EnvVarModel{Name: e.Name, Value: &v}
 }
 
 // SecretEnv reads from a K8s Secret.
@@ -55,11 +26,11 @@ type SecretEnv struct {
 	Optional   *bool
 }
 
-func (e SecretEnv) Build() EnvVarModel {
-	return EnvVarModel{
+func (e SecretEnv) Build() model.EnvVarModel {
+	return model.EnvVarModel{
 		Name: e.Name,
-		ValueFrom: &EnvVarSource{
-			SecretKeyRef: &KeySelector{
+		ValueFrom: &model.EnvVarSource{
+			SecretKeyRef: &model.KeySelector{
 				Name:     e.SecretName,
 				Key:      e.SecretKey,
 				Optional: e.Optional,
@@ -76,11 +47,11 @@ type ConfigMapEnv struct {
 	Optional      *bool
 }
 
-func (e ConfigMapEnv) Build() EnvVarModel {
-	return EnvVarModel{
+func (e ConfigMapEnv) Build() model.EnvVarModel {
+	return model.EnvVarModel{
 		Name: e.Name,
-		ValueFrom: &EnvVarSource{
-			ConfigMapKeyRef: &KeySelector{
+		ValueFrom: &model.EnvVarSource{
+			ConfigMapKeyRef: &model.KeySelector{
 				Name:     e.ConfigMapName,
 				Key:      e.ConfigMapKey,
 				Optional: e.Optional,
@@ -96,11 +67,11 @@ type FieldEnv struct {
 	APIVersion string
 }
 
-func (e FieldEnv) Build() EnvVarModel {
-	return EnvVarModel{
+func (e FieldEnv) Build() model.EnvVarModel {
+	return model.EnvVarModel{
 		Name: e.Name,
-		ValueFrom: &EnvVarSource{
-			FieldRef: &FieldSelector{
+		ValueFrom: &model.EnvVarSource{
+			FieldRef: &model.FieldSelector{
 				FieldPath:  e.FieldPath,
 				APIVersion: e.APIVersion,
 			},
@@ -116,11 +87,11 @@ type ResourceEnv struct {
 	Divisor       string
 }
 
-func (e ResourceEnv) Build() EnvVarModel {
-	return EnvVarModel{
+func (e ResourceEnv) Build() model.EnvVarModel {
+	return model.EnvVarModel{
 		Name: e.Name,
-		ValueFrom: &EnvVarSource{
-			ResourceFieldRef: &ResourceFieldSelector{
+		ValueFrom: &model.EnvVarSource{
+			ResourceFieldRef: &model.ResourceFieldSelector{
 				Resource:      e.Resource,
 				ContainerName: e.ContainerName,
 				Divisor:       e.Divisor,

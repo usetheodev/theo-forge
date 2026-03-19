@@ -138,8 +138,8 @@ func TestPVCVolumeBuild(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if pvc.Name != "dynamic" {
-		t.Errorf("pvc name = %q", pvc.Name)
+	if pvc.Metadata.Name != "dynamic" {
+		t.Errorf("pvc name = %q", pvc.Metadata.Name)
 	}
 	if pvc.Spec.Resources.Requests.Storage != "10Gi" {
 		t.Errorf("storage = %q, want '10Gi'", pvc.Spec.Resources.Requests.Storage)

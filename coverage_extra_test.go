@@ -39,8 +39,8 @@ func TestWorkflowWithVolumeClaimTemplates(t *testing.T) {
 	if len(model.Spec.VolumeClaimTemplates) != 2 {
 		t.Fatalf("pvcs = %d, want 2", len(model.Spec.VolumeClaimTemplates))
 	}
-	if model.Spec.VolumeClaimTemplates[0].Name != "work" {
-		t.Errorf("pvc[0].name = %q", model.Spec.VolumeClaimTemplates[0].Name)
+	if model.Spec.VolumeClaimTemplates[0].Metadata.Name != "work" {
+		t.Errorf("pvc[0].name = %q", model.Spec.VolumeClaimTemplates[0].Metadata.Name)
 	}
 	if model.Spec.VolumeClaimTemplates[0].Spec.StorageClassName != "fast" {
 		t.Errorf("storageClass = %q", model.Spec.VolumeClaimTemplates[0].Spec.StorageClassName)
@@ -90,7 +90,7 @@ func TestWorkflowWithMetrics(t *testing.T) {
 				Help: "Duration of workflow",
 				Gauge: &Gauge{
 					Value:    "{{workflow.duration}}",
-					Realtime: true,
+					Realtime: ptrBool(true),
 				},
 			},
 		},
@@ -311,7 +311,7 @@ func TestWorkflowWithRetryStrategy(t *testing.T) {
 	if model.Spec.RetryStrategy == nil {
 		t.Fatal("expected retry strategy")
 	}
-	if *model.Spec.RetryStrategy.Limit != 5 {
-		t.Errorf("limit = %d", *model.Spec.RetryStrategy.Limit)
+	if model.Spec.RetryStrategy.Limit != "5" {
+		t.Errorf("limit = %v, want \"5\"", model.Spec.RetryStrategy.Limit)
 	}
 }

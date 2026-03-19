@@ -3,6 +3,9 @@ package forge
 import (
 	"strings"
 	"testing"
+
+	"github.com/usetheo/theo/forge/client"
+	"github.com/usetheo/theo/forge/expr"
 )
 
 // Cover ToYAML/ToJSON/ToDict error paths (invalid workflow → Build fails → propagates)
@@ -204,7 +207,7 @@ func TestDAGWithOutputParameters(t *testing.T) {
 
 // Cover LintWorkflow build error path
 func TestServiceLintWorkflowBuildError(t *testing.T) {
-	svc := &WorkflowsService{Host: "https://argo.example.com", Namespace: "default"}
+	svc := &client.WorkflowsService{Host: "https://argo.example.com", Namespace: "default"}
 	w := &Workflow{Entrypoint: "main"} // no name
 	_, err := svc.LintWorkflow(nil, w)
 	if err == nil {
@@ -214,7 +217,7 @@ func TestServiceLintWorkflowBuildError(t *testing.T) {
 
 // Cover CreateWorkflow build error path
 func TestServiceCreateWorkflowBuildError(t *testing.T) {
-	svc := &WorkflowsService{Host: "https://argo.example.com", Namespace: "default"}
+	svc := &client.WorkflowsService{Host: "https://argo.example.com", Namespace: "default"}
 	w := &Workflow{Entrypoint: "main"} // no name
 	_, err := svc.CreateWorkflow(nil, w)
 	if err == nil {
@@ -279,7 +282,7 @@ func TestHTTPArtifactNoNameFails(t *testing.T) {
 // Cover Expr.C default branch
 func TestExprConstantDefault(t *testing.T) {
 	type custom struct{ X int }
-	e := C(custom{X: 42})
+	e := expr.C(custom{X: 42})
 	if !strings.Contains(e.String(), "42") {
 		t.Errorf("got %q", e.String())
 	}

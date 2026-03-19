@@ -1,10 +1,10 @@
 package forge
 
 import (
-	"encoding/json"
 	"fmt"
 
-	"sigs.k8s.io/yaml"
+	"github.com/usetheo/theo/forge/model"
+	"github.com/usetheo/theo/forge/serialize"
 )
 
 // WorkflowTemplate represents a namespace-scoped reusable workflow template.
@@ -31,14 +31,6 @@ type WorkflowTemplate struct {
 	ServiceAccountName string
 }
 
-// WorkflowTemplateModel is the serializable Argo WorkflowTemplate.
-type WorkflowTemplateModel struct {
-	APIVersion string            `json:"apiVersion" yaml:"apiVersion"`
-	Kind       string            `json:"kind" yaml:"kind"`
-	Metadata   WorkflowMetadata  `json:"metadata" yaml:"metadata"`
-	Spec       WorkflowSpec      `json:"spec" yaml:"spec"`
-}
-
 func (wt *WorkflowTemplate) validate() error {
 	if wt.Name == "" {
 		return fmt.Errorf("workflow template name cannot be empty")
@@ -50,9 +42,9 @@ func (wt *WorkflowTemplate) validate() error {
 }
 
 // Build converts the WorkflowTemplate to its serializable model.
-func (wt *WorkflowTemplate) Build() (WorkflowTemplateModel, error) {
+func (wt *WorkflowTemplate) Build() (model.WorkflowTemplateModel, error) {
 	if err := wt.validate(); err != nil {
-		return WorkflowTemplateModel{}, err
+		return model.WorkflowTemplateModel{}, err
 	}
 
 	apiVersion := wt.APIVersion
@@ -60,46 +52,42 @@ func (wt *WorkflowTemplate) Build() (WorkflowTemplateModel, error) {
 		apiVersion = DefaultAPIVersion
 	}
 
-	templates := make([]TemplateModel, 0, len(wt.Templates))
-	for _, t := range wt.Templates {
-		m, err := t.BuildTemplate()
-		if err != nil {
-			return WorkflowTemplateModel{}, fmt.Errorf("template %q: %w", t.GetName(), err)
-		}
-		templates = append(templates, m)
+	templates, err := buildTemplateModels(wt.Templates)
+	if err != nil {
+		return model.WorkflowTemplateModel{}, err
 	}
 
-	var args *ArgumentsModel
+	var args *model.ArgumentsModel
 	if len(wt.Arguments) > 0 {
-		args = &ArgumentsModel{}
+		args = &model.ArgumentsModel{}
 		for _, p := range wt.Arguments {
 			m, err := p.AsArgument()
 			if err != nil {
-				continue
+				return model.WorkflowTemplateModel{}, fmt.Errorf("argument %q: %w", p.Name, err)
 			}
 			args.Parameters = append(args.Parameters, m)
 		}
 	}
 
-	var vols []VolumeModel
+	var vols []model.VolumeModel
 	for _, v := range wt.Volumes {
 		m, err := v.BuildVolume()
 		if err != nil {
-			continue
+			return model.WorkflowTemplateModel{}, fmt.Errorf("volume: %w", err)
 		}
 		vols = append(vols, m)
 	}
 
-	return WorkflowTemplateModel{
+	return model.WorkflowTemplateModel{
 		APIVersion: apiVersion,
 		Kind:       "WorkflowTemplate",
-		Metadata: WorkflowMetadata{
+		Metadata: model.WorkflowMetadata{
 			Name:        wt.Name,
 			Namespace:   wt.Namespace,
 			Labels:      wt.Labels,
 			Annotations: wt.Annotations,
 		},
-		Spec: WorkflowSpec{
+		Spec: model.WorkflowSpec{
 			Entrypoint:         wt.Entrypoint,
 			Templates:          templates,
 			Arguments:          args,
@@ -111,15 +99,11 @@ func (wt *WorkflowTemplate) Build() (WorkflowTemplateModel, error) {
 
 // ToYAML converts the WorkflowTemplate to YAML.
 func (wt *WorkflowTemplate) ToYAML() (string, error) {
-	model, err := wt.Build()
+	m, err := wt.Build()
 	if err != nil {
 		return "", err
 	}
-	data, err := yaml.Marshal(model)
-	if err != nil {
-		return "", err
-	}
-	return string(data), nil
+	return serialize.WorkflowTemplateToYAML(m)
 }
 
 // ClusterWorkflowTemplate represents a cluster-scoped reusable workflow template.
@@ -150,9 +134,9 @@ func (cwt *ClusterWorkflowTemplate) validate() error {
 }
 
 // Build converts the ClusterWorkflowTemplate to its serializable model.
-func (cwt *ClusterWorkflowTemplate) Build() (WorkflowTemplateModel, error) {
+func (cwt *ClusterWorkflowTemplate) Build() (model.WorkflowTemplateModel, error) {
 	if err := cwt.validate(); err != nil {
-		return WorkflowTemplateModel{}, err
+		return model.WorkflowTemplateModel{}, err
 	}
 
 	apiVersion := cwt.APIVersion
@@ -160,36 +144,32 @@ func (cwt *ClusterWorkflowTemplate) Build() (WorkflowTemplateModel, error) {
 		apiVersion = DefaultAPIVersion
 	}
 
-	templates := make([]TemplateModel, 0, len(cwt.Templates))
-	for _, t := range cwt.Templates {
-		m, err := t.BuildTemplate()
-		if err != nil {
-			return WorkflowTemplateModel{}, fmt.Errorf("template %q: %w", t.GetName(), err)
-		}
-		templates = append(templates, m)
+	templates, err := buildTemplateModels(cwt.Templates)
+	if err != nil {
+		return model.WorkflowTemplateModel{}, err
 	}
 
-	var args *ArgumentsModel
+	var args *model.ArgumentsModel
 	if len(cwt.Arguments) > 0 {
-		args = &ArgumentsModel{}
+		args = &model.ArgumentsModel{}
 		for _, p := range cwt.Arguments {
 			m, err := p.AsArgument()
 			if err != nil {
-				continue
+				return model.WorkflowTemplateModel{}, fmt.Errorf("argument %q: %w", p.Name, err)
 			}
 			args.Parameters = append(args.Parameters, m)
 		}
 	}
 
-	return WorkflowTemplateModel{
+	return model.WorkflowTemplateModel{
 		APIVersion: apiVersion,
 		Kind:       "ClusterWorkflowTemplate",
-		Metadata: WorkflowMetadata{
+		Metadata: model.WorkflowMetadata{
 			Name:        cwt.Name,
 			Labels:      cwt.Labels,
 			Annotations: cwt.Annotations,
 		},
-		Spec: WorkflowSpec{
+		Spec: model.WorkflowSpec{
 			Entrypoint:         cwt.Entrypoint,
 			Templates:          templates,
 			Arguments:          args,
@@ -200,16 +180,14 @@ func (cwt *ClusterWorkflowTemplate) Build() (WorkflowTemplateModel, error) {
 
 // ToYAML converts the ClusterWorkflowTemplate to YAML.
 func (cwt *ClusterWorkflowTemplate) ToYAML() (string, error) {
-	model, err := cwt.Build()
+	m, err := cwt.Build()
 	if err != nil {
 		return "", err
 	}
-	data, err := yaml.Marshal(model)
-	if err != nil {
-		return "", err
-	}
-	return string(data), nil
+	return serialize.WorkflowTemplateToYAML(m)
 }
+
+// --- CronWorkflow ---
 
 // CronWorkflow represents a scheduled workflow.
 type CronWorkflow struct {
@@ -237,6 +215,14 @@ type CronWorkflow struct {
 	SuccessfulJobsHistoryLimit *int
 	// FailedJobsHistoryLimit is the number of failed runs to keep.
 	FailedJobsHistoryLimit *int
+	// Schedules supports multiple cron schedules (alternative to Schedule).
+	Schedules []string
+	// When is a condition expression for running the workflow.
+	When string
+	// WorkflowMetadata sets metadata on the generated workflow.
+	WorkflowMetadata *model.WorkflowMetadata
+	// StopStrategy defines when to stop scheduling.
+	StopStrategy *model.StopStrategy
 	// WorkflowSpec is the workflow to run on schedule.
 	Entrypoint         string
 	Templates          []Templatable
@@ -245,40 +231,20 @@ type CronWorkflow struct {
 	ServiceAccountName string
 }
 
-// CronWorkflowModel is the serializable Argo CronWorkflow.
-type CronWorkflowModel struct {
-	APIVersion string             `json:"apiVersion" yaml:"apiVersion"`
-	Kind       string             `json:"kind" yaml:"kind"`
-	Metadata   WorkflowMetadata   `json:"metadata" yaml:"metadata"`
-	Spec       CronWorkflowSpec   `json:"spec" yaml:"spec"`
-}
-
-// CronWorkflowSpec is the spec for a cron workflow.
-type CronWorkflowSpec struct {
-	Schedule                   string       `json:"schedule" yaml:"schedule"`
-	Timezone                   string       `json:"timezone,omitempty" yaml:"timezone,omitempty"`
-	Suspend                    *bool        `json:"suspend,omitempty" yaml:"suspend,omitempty"`
-	ConcurrencyPolicy          string       `json:"concurrencyPolicy,omitempty" yaml:"concurrencyPolicy,omitempty"`
-	StartingDeadlineSeconds    *int         `json:"startingDeadlineSeconds,omitempty" yaml:"startingDeadlineSeconds,omitempty"`
-	SuccessfulJobsHistoryLimit *int         `json:"successfulJobsHistoryLimit,omitempty" yaml:"successfulJobsHistoryLimit,omitempty"`
-	FailedJobsHistoryLimit     *int         `json:"failedJobsHistoryLimit,omitempty" yaml:"failedJobsHistoryLimit,omitempty"`
-	WorkflowSpec               WorkflowSpec `json:"workflowSpec" yaml:"workflowSpec"`
-}
-
 func (cw *CronWorkflow) validate() error {
 	if cw.Name == "" {
 		return fmt.Errorf("cron workflow name cannot be empty")
 	}
-	if cw.Schedule == "" {
-		return fmt.Errorf("cron workflow schedule cannot be empty")
+	if cw.Schedule == "" && len(cw.Schedules) == 0 {
+		return fmt.Errorf("cron workflow schedule or schedules must be set")
 	}
 	return nil
 }
 
 // Build converts the CronWorkflow to its serializable model.
-func (cw *CronWorkflow) Build() (CronWorkflowModel, error) {
+func (cw *CronWorkflow) Build() (model.CronWorkflowModel, error) {
 	if err := cw.validate(); err != nil {
-		return CronWorkflowModel{}, err
+		return model.CronWorkflowModel{}, err
 	}
 
 	apiVersion := cw.APIVersion
@@ -286,54 +252,54 @@ func (cw *CronWorkflow) Build() (CronWorkflowModel, error) {
 		apiVersion = DefaultAPIVersion
 	}
 
-	templates := make([]TemplateModel, 0, len(cw.Templates))
-	for _, t := range cw.Templates {
-		m, err := t.BuildTemplate()
-		if err != nil {
-			return CronWorkflowModel{}, fmt.Errorf("template %q: %w", t.GetName(), err)
-		}
-		templates = append(templates, m)
+	templates, err := buildTemplateModels(cw.Templates)
+	if err != nil {
+		return model.CronWorkflowModel{}, err
 	}
 
-	var args *ArgumentsModel
+	var args *model.ArgumentsModel
 	if len(cw.Arguments) > 0 {
-		args = &ArgumentsModel{}
+		args = &model.ArgumentsModel{}
 		for _, p := range cw.Arguments {
 			m, err := p.AsArgument()
 			if err != nil {
-				continue
+				return model.CronWorkflowModel{}, fmt.Errorf("argument %q: %w", p.Name, err)
 			}
 			args.Parameters = append(args.Parameters, m)
 		}
 	}
 
-	var vols []VolumeModel
+	var vols []model.VolumeModel
 	for _, v := range cw.Volumes {
 		m, err := v.BuildVolume()
 		if err != nil {
-			continue
+			return model.CronWorkflowModel{}, fmt.Errorf("volume: %w", err)
 		}
 		vols = append(vols, m)
 	}
 
-	return CronWorkflowModel{
+	return model.CronWorkflowModel{
 		APIVersion: apiVersion,
 		Kind:       "CronWorkflow",
-		Metadata: WorkflowMetadata{
+		Metadata: model.WorkflowMetadata{
 			Name:        cw.Name,
 			Namespace:   cw.Namespace,
 			Labels:      cw.Labels,
 			Annotations: cw.Annotations,
 		},
-		Spec: CronWorkflowSpec{
+		Spec: model.CronWorkflowSpec{
 			Schedule:                   cw.Schedule,
+			Schedules:                  cw.Schedules,
 			Timezone:                   cw.Timezone,
+			When:                       cw.When,
 			Suspend:                    cw.Suspend,
 			ConcurrencyPolicy:          cw.ConcurrencyPolicy,
 			StartingDeadlineSeconds:    cw.StartingDeadlineSeconds,
 			SuccessfulJobsHistoryLimit: cw.SuccessfulJobsHistoryLimit,
 			FailedJobsHistoryLimit:     cw.FailedJobsHistoryLimit,
-			WorkflowSpec: WorkflowSpec{
+			WorkflowMetadata:           cw.WorkflowMetadata,
+			StopStrategy:               cw.StopStrategy,
+			WorkflowSpec: model.WorkflowSpec{
 				Entrypoint:         cw.Entrypoint,
 				Templates:          templates,
 				Arguments:          args,
@@ -346,26 +312,19 @@ func (cw *CronWorkflow) Build() (CronWorkflowModel, error) {
 
 // ToYAML converts the CronWorkflow to YAML.
 func (cw *CronWorkflow) ToYAML() (string, error) {
-	model, err := cw.Build()
+	m, err := cw.Build()
 	if err != nil {
 		return "", err
 	}
-	data, err := yaml.Marshal(model)
-	if err != nil {
-		return "", err
-	}
-	return string(data), nil
+	return serialize.CronWorkflowToYAML(m)
 }
 
 // ToJSON converts the CronWorkflow to JSON.
 func (cw *CronWorkflow) ToJSON() (string, error) {
-	model, err := cw.Build()
+	m, err := cw.Build()
 	if err != nil {
 		return "", err
 	}
-	data, err := json.MarshalIndent(model, "", "  ")
-	if err != nil {
-		return "", err
-	}
-	return string(data), nil
+	return serialize.CronWorkflowToJSON(m)
 }
+

@@ -1,0 +1,15 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: shared-build
+  namespace: default
+spec:
+  entrypoint: build
+  templates:
+  - container:
+      command:
+      - go
+      - build
+      - ./...
+      image: golang:1.22
+    name: build

@@ -197,7 +197,3 @@ func TestParameterModelJSON(t *testing.T) {
 	}
 }
 
-// helper
-func ptrStr(s string) *string {
-	return &s
-}
