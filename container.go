@@ -51,6 +51,34 @@ type Container struct {
 	Metrics []Metric
 	// Ports exposed by the container.
 	Ports []ContainerPort
+	// Daemon marks this container as a daemon.
+	Daemon *bool
+	// Memoize caches template outputs.
+	Memoize *model.MemoizeModel
+	// Synchronization configures synchronization constraints.
+	Synchronization *model.SynchronizationModel
+	// PodSpecPatch is a JSON/YAML patch for the pod spec.
+	PodSpecPatch string
+	// Hooks are lifecycle hooks.
+	Hooks map[string]model.LifecycleHook
+	// ArchiveLocation overrides the default artifact location.
+	ArchiveLocation *model.ArtifactLocation
+	// InitContainers are init containers for the pod.
+	InitContainers []UserContainer
+	// Sidecars are sidecar containers.
+	Sidecars []UserContainer
+	// Tolerations for pod scheduling.
+	Tolerations []model.Toleration
+	// Parallelism limits concurrent pods.
+	Parallelism *int
+	// SecurityContext for the container.
+	SecurityContext *model.SecurityContext
+	// EnvFrom sources for env vars.
+	EnvFrom []model.EnvFromSource
+	// ReadinessProbe for the container.
+	ReadinessProbe *model.Probe
+	// LivenessProbe for the container.
+	LivenessProbe *model.Probe
 }
 
 func (c *Container) GetName() string {
@@ -73,6 +101,15 @@ func (c *Container) BuildTemplate() (model.TemplateModel, error) {
 		return model.TemplateModel{}, fmt.Errorf("container %q: %w", c.Name, err)
 	}
 
+	var initContainers []model.ContainerModel
+	for _, ic := range c.InitContainers {
+		initContainers = append(initContainers, ic.Build())
+	}
+	var sidecars []model.ContainerModel
+	for _, sc := range c.Sidecars {
+		sidecars = append(sidecars, sc.Build())
+	}
+
 	return model.TemplateModel{
 		Name: c.Name,
 		Container: &model.ContainerModel{
@@ -81,10 +118,14 @@ func (c *Container) BuildTemplate() (model.TemplateModel, error) {
 			Args:            c.Args,
 			WorkingDir:      c.WorkingDir,
 			Env:             buildEnvVars(c.Env),
+			EnvFrom:         c.EnvFrom,
 			Resources:       c.Resources,
 			VolumeMounts:    buildVolumeMountModels(c.VolumeMounts),
 			ImagePullPolicy: string(c.ImagePullPolicy),
 			Ports:           c.Ports,
+			SecurityContext: c.SecurityContext,
+			ReadinessProbe:  c.ReadinessProbe,
+			LivenessProbe:   c.LivenessProbe,
 		},
 		Inputs:                inputs,
 		Outputs:               outputs,
@@ -95,5 +136,15 @@ func (c *Container) BuildTemplate() (model.TemplateModel, error) {
 		NodeSelector:          c.NodeSelector,
 		ServiceAccountName:    c.ServiceAccountName,
 		Metrics:               buildMetricsModel(c.Metrics),
+		Daemon:                c.Daemon,
+		Memoize:               c.Memoize,
+		Synchronization:       c.Synchronization,
+		PodSpecPatch:          c.PodSpecPatch,
+		Hooks:                 c.Hooks,
+		ArchiveLocation:       c.ArchiveLocation,
+		InitContainers:        initContainers,
+		Sidecars:              sidecars,
+		Tolerations:           c.Tolerations,
+		Parallelism:           c.Parallelism,
 	}, nil
 }

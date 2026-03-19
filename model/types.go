@@ -76,7 +76,7 @@ type SecretKeySelector struct {
 
 // ArchiveStrategy describes how to archive an artifact.
 type ArchiveStrategy struct {
-	None *bool `json:"none,omitempty" yaml:"none,omitempty"`
+	None *struct{} `json:"none,omitempty" yaml:"none,omitempty"`
 	Tar  *struct {
 		CompressionLevel *int32 `json:"compressionLevel,omitempty" yaml:"compressionLevel,omitempty"`
 	} `json:"tar,omitempty" yaml:"tar,omitempty"`

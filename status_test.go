@@ -1,6 +1,10 @@
 package forge
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/usetheo/theo/forge/model"
+)
 
 func TestParseWorkflowStatus(t *testing.T) {
 	tests := []struct {
@@ -19,7 +23,7 @@ func TestParseWorkflowStatus(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			got, err := ParseWorkflowStatus(tt.input)
+			got, err := model.ParseWorkflowStatus(tt.input)
 			if tt.err && err == nil {
 				t.Fatal("expected error")
 			}
@@ -45,8 +49,8 @@ func TestRetryStrategyBuild(t *testing.T) {
 		},
 	}
 	model := rs.Build()
-	if model.Limit == nil || *model.Limit != 3 {
-		t.Errorf("limit = %v, want 3", model.Limit)
+	if model.Limit != "3" {
+		t.Errorf("limit = %v, want \"3\"", model.Limit)
 	}
 	if model.RetryPolicy != "OnFailure" {
 		t.Errorf("policy = %q", model.RetryPolicy)
@@ -61,19 +65,19 @@ func TestMetricStructure(t *testing.T) {
 		Name: "build_duration",
 		Help: "Duration of build step",
 		Labels: []Label{{Key: "step", Value: "build"}},
-		Gauge:  &Gauge{Value: "{{duration}}", Realtime: true},
+		Gauge:  &Gauge{Value: "{{duration}}", Realtime: ptrBool(true)},
 	}
 	if m.Name != "build_duration" {
 		t.Errorf("name = %q", m.Name)
 	}
-	if m.Gauge == nil || !m.Gauge.Realtime {
+	if m.Gauge == nil || m.Gauge.Realtime == nil || !*m.Gauge.Realtime {
 		t.Error("expected realtime gauge")
 	}
 }
 
 func TestErrorTypes(t *testing.T) {
 	t.Run("InvalidType", func(t *testing.T) {
-		err := &InvalidType{Expected: "Task", Got: "Step"}
+		err := &model.InvalidType{Expected: "Task", Got: "Step"}
 		if err.Error() != "invalid type: expected Task, got Step" {
 			t.Errorf("unexpected message: %s", err.Error())
 		}

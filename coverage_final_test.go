@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"testing"
+
+	"github.com/usetheo/theo/forge/client"
 )
 
 // Cover volume BuildVolume error paths (no-name failures)
@@ -75,22 +77,9 @@ func TestParameterStringSuccess(t *testing.T) {
 	}
 }
 
-// Cover parsePositiveDecimal
-func TestParsePositiveDecimal(t *testing.T) {
-	if err := parsePositiveDecimal("500m"); err != nil {
-		t.Errorf("500m should be valid: %v", err)
-	}
-	if err := parsePositiveDecimal(""); err != nil {
-		t.Errorf("empty should be valid: %v", err)
-	}
-	if err := parsePositiveDecimal("abc"); err == nil {
-		t.Error("abc should be invalid")
-	}
-}
-
 // Cover service unmarshal error paths
 func TestServiceCreateWorkflowBadResponse(t *testing.T) {
-	svc := &WorkflowsService{
+	svc := &client.WorkflowsService{
 		Host:      "https://argo.example.com",
 		Namespace: "default",
 		HTTPClient: &mockHTTPClient{
@@ -107,7 +96,7 @@ func TestServiceCreateWorkflowBadResponse(t *testing.T) {
 }
 
 func TestServiceListWorkflowsBadResponse(t *testing.T) {
-	svc := &WorkflowsService{
+	svc := &client.WorkflowsService{
 		Host:      "https://argo.example.com",
 		Namespace: "default",
 		HTTPClient: &mockHTTPClient{
@@ -123,7 +112,7 @@ func TestServiceListWorkflowsBadResponse(t *testing.T) {
 }
 
 func TestServiceLintWorkflowBadResponse(t *testing.T) {
-	svc := &WorkflowsService{
+	svc := &client.WorkflowsService{
 		Host:      "https://argo.example.com",
 		Namespace: "default",
 		HTTPClient: &mockHTTPClient{
@@ -140,7 +129,7 @@ func TestServiceLintWorkflowBadResponse(t *testing.T) {
 }
 
 func TestServiceGetInfoBadResponse(t *testing.T) {
-	svc := &WorkflowsService{
+	svc := &client.WorkflowsService{
 		Host: "https://argo.example.com",
 		HTTPClient: &mockHTTPClient{
 			DoFunc: func(req *http.Request) (*http.Response, error) {
@@ -155,7 +144,7 @@ func TestServiceGetInfoBadResponse(t *testing.T) {
 }
 
 func TestServiceGetVersionBadResponse(t *testing.T) {
-	svc := &WorkflowsService{
+	svc := &client.WorkflowsService{
 		Host: "https://argo.example.com",
 		HTTPClient: &mockHTTPClient{
 			DoFunc: func(req *http.Request) (*http.Response, error) {
@@ -170,7 +159,7 @@ func TestServiceGetVersionBadResponse(t *testing.T) {
 }
 
 func TestServiceGetWorkflowBadResponse(t *testing.T) {
-	svc := &WorkflowsService{
+	svc := &client.WorkflowsService{
 		Host:      "https://argo.example.com",
 		Namespace: "default",
 		HTTPClient: &mockHTTPClient{

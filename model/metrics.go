@@ -14,7 +14,7 @@ type Counter struct {
 // Gauge is a Prometheus gauge metric.
 type Gauge struct {
 	Value    string `json:"value" yaml:"value"`
-	Realtime bool   `json:"realtime,omitempty" yaml:"realtime,omitempty"`
+	Realtime *bool  `json:"realtime,omitempty" yaml:"realtime,omitempty"`
 }
 
 // Histogram is a Prometheus histogram metric.

@@ -74,8 +74,13 @@ type VolumeMountModel struct {
 
 // PVCModel is the serializable representation of a K8s PersistentVolumeClaim.
 type PVCModel struct {
-	Name string  `json:"name" yaml:"name"`
-	Spec PVCSpec `json:"spec" yaml:"spec"`
+	Metadata PVCMetadata `json:"metadata" yaml:"metadata"`
+	Spec     PVCSpec     `json:"spec" yaml:"spec"`
+}
+
+// PVCMetadata is the metadata for a PVC.
+type PVCMetadata struct {
+	Name string `json:"name" yaml:"name"`
 }
 
 // PVCSpec is the PVC specification.

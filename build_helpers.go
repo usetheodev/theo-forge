@@ -102,3 +102,17 @@ func buildRetryStrategyModel(rs *RetryStrategy) *model.RetryStrategyModel {
 	m := rs.Build()
 	return &m
 }
+
+// buildTemplateModels builds and hooks all Templatable entries, returning the slice of TemplateModel.
+func buildTemplateModels(templates []Templatable) ([]model.TemplateModel, error) {
+	result := make([]model.TemplateModel, 0, len(templates))
+	for _, t := range templates {
+		m, err := t.BuildTemplate()
+		if err != nil {
+			return nil, fmt.Errorf("template %q: %w", t.GetName(), err)
+		}
+		globalConfig.DispatchTemplateHooks(&m)
+		result = append(result, m)
+	}
+	return result, nil
+}

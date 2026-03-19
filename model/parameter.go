@@ -20,8 +20,12 @@ type ValueFrom struct {
 	Expression string `json:"expression,omitempty" yaml:"expression,omitempty"`
 	// JSONPath is a JSONPath expression to evaluate against the resource.
 	JSONPath string `json:"jsonPath,omitempty" yaml:"jsonPath,omitempty"`
+	// JQFilter is a jq expression to evaluate against the resource.
+	JQFilter string `json:"jqFilter,omitempty" yaml:"jqFilter,omitempty"`
 	// Parameter is a reference to another parameter.
 	Parameter string `json:"parameter,omitempty" yaml:"parameter,omitempty"`
+	// ConfigMapKeyRef references a key in a ConfigMap.
+	ConfigMapKeyRef *ConfigMapKeyRef `json:"configMapKeyRef,omitempty" yaml:"configMapKeyRef,omitempty"`
 	// Default is the default value if the source cannot be resolved.
 	Default *string `json:"default,omitempty" yaml:"default,omitempty"`
 }

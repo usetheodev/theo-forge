@@ -12,15 +12,16 @@ const (
 
 // Backoff defines the backoff strategy for retries.
 type Backoff struct {
-	Duration    string `json:"duration,omitempty" yaml:"duration,omitempty"`
-	Factor      *int   `json:"factor,omitempty" yaml:"factor,omitempty"`
-	MaxDuration string `json:"maxDuration,omitempty" yaml:"maxDuration,omitempty"`
+	Duration    string      `json:"duration,omitempty" yaml:"duration,omitempty"`
+	Factor      interface{} `json:"factor,omitempty" yaml:"factor,omitempty"`
+	MaxDuration string      `json:"maxDuration,omitempty" yaml:"maxDuration,omitempty"`
+	Cap         string      `json:"cap,omitempty" yaml:"cap,omitempty"`
 }
 
 // RetryStrategyModel is the serializable representation of a retry strategy.
 type RetryStrategyModel struct {
-	Limit       *int   `json:"limit,omitempty" yaml:"limit,omitempty"`
-	RetryPolicy string `json:"retryPolicy,omitempty" yaml:"retryPolicy,omitempty"`
-	Backoff     *Backoff `json:"backoff,omitempty" yaml:"backoff,omitempty"`
-	Expression  string `json:"expression,omitempty" yaml:"expression,omitempty"`
+	Limit       interface{} `json:"limit,omitempty" yaml:"limit,omitempty"`
+	RetryPolicy string      `json:"retryPolicy,omitempty" yaml:"retryPolicy,omitempty"`
+	Backoff     *Backoff    `json:"backoff,omitempty" yaml:"backoff,omitempty"`
+	Expression  string      `json:"expression,omitempty" yaml:"expression,omitempty"`
 }

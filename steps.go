@@ -26,6 +26,14 @@ type Step struct {
 	WithItems []interface{}
 	// WithParam enables fan-out from a parameter.
 	WithParam string
+	// WithSequence generates a list of numbers for fan-out.
+	WithSequence *model.Sequence
+	// Inline is an inline template definition.
+	Inline Templatable
+	// OnExit is the exit handler template name for this step.
+	OnExit string
+	// Hooks are lifecycle hooks for this step.
+	Hooks map[string]model.LifecycleHook
 }
 
 // GetOutputParameter returns a parameter reference for this step's output.
@@ -68,15 +76,28 @@ func (s *Step) BuildStep() (model.StepModel, error) {
 		}
 	}
 
+	var inline *model.TemplateModel
+	if s.Inline != nil {
+		m, err := s.Inline.BuildTemplate()
+		if err != nil {
+			return model.StepModel{}, fmt.Errorf("step %q inline: %w", s.Name, err)
+		}
+		inline = &m
+	}
+
 	return model.StepModel{
-		Name:        s.Name,
-		Template:    s.Template,
-		TemplateRef: s.TemplateRef,
-		Arguments:   args,
-		When:        s.When,
-		ContinueOn:  s.ContinueOn,
-		WithItems:   s.WithItems,
-		WithParam:   s.WithParam,
+		Name:         s.Name,
+		Template:     s.Template,
+		TemplateRef:  s.TemplateRef,
+		Inline:       inline,
+		Arguments:    args,
+		When:         s.When,
+		ContinueOn:   s.ContinueOn,
+		WithItems:    s.WithItems,
+		WithParam:    s.WithParam,
+		WithSequence: s.WithSequence,
+		OnExit:       s.OnExit,
+		Hooks:        s.Hooks,
 	}, nil
 }
 

@@ -1,6 +1,10 @@
 package forge
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/usetheo/theo/forge/model"
+)
 
 func TestGlobalConfigDefaults(t *testing.T) {
 	cfg := GetGlobalConfig()
@@ -39,16 +43,16 @@ func TestGlobalConfigTemplateHook(t *testing.T) {
 	defer cfg.Reset()
 
 	// Register hook that sets a default image
-	cfg.RegisterTemplateHook(func(tpl *TemplateModel) {
+	cfg.RegisterTemplateHook(func(tpl *model.TemplateModel) {
 		if tpl.Container != nil && tpl.Container.Image == "" {
 			tpl.Container.Image = "default-image:latest"
 		}
 	})
 
 	// Build a container with no image
-	tpl := &TemplateModel{
+	tpl := &model.TemplateModel{
 		Name:      "test",
-		Container: &ContainerModel{Image: ""},
+		Container: &model.ContainerModel{Image: ""},
 	}
 	cfg.DispatchTemplateHooks(tpl)
 
@@ -62,15 +66,15 @@ func TestGlobalConfigWorkflowHook(t *testing.T) {
 	defer cfg.Reset()
 
 	// Register hook that adds a label
-	cfg.RegisterWorkflowHook(func(wf *WorkflowModel) {
+	cfg.RegisterWorkflowHook(func(wf *model.WorkflowModel) {
 		if wf.Metadata.Labels == nil {
 			wf.Metadata.Labels = make(map[string]string)
 		}
 		wf.Metadata.Labels["managed-by"] = "forge"
 	})
 
-	wf := &WorkflowModel{
-		Metadata: WorkflowMetadata{Name: "test"},
+	wf := &model.WorkflowModel{
+		Metadata: model.WorkflowMetadata{Name: "test"},
 	}
 	cfg.DispatchWorkflowHooks(wf)
 
@@ -84,14 +88,14 @@ func TestGlobalConfigMultipleHooks(t *testing.T) {
 	defer cfg.Reset()
 
 	callOrder := []string{}
-	cfg.RegisterTemplateHook(func(tpl *TemplateModel) {
+	cfg.RegisterTemplateHook(func(tpl *model.TemplateModel) {
 		callOrder = append(callOrder, "first")
 	})
-	cfg.RegisterTemplateHook(func(tpl *TemplateModel) {
+	cfg.RegisterTemplateHook(func(tpl *model.TemplateModel) {
 		callOrder = append(callOrder, "second")
 	})
 
-	tpl := &TemplateModel{Name: "test"}
+	tpl := &model.TemplateModel{Name: "test"}
 	cfg.DispatchTemplateHooks(tpl)
 
 	if len(callOrder) != 2 {
@@ -107,12 +111,12 @@ func TestGlobalConfigClearHooks(t *testing.T) {
 	defer cfg.Reset()
 
 	called := false
-	cfg.RegisterTemplateHook(func(tpl *TemplateModel) {
+	cfg.RegisterTemplateHook(func(tpl *model.TemplateModel) {
 		called = true
 	})
 	cfg.ClearHooks()
 
-	tpl := &TemplateModel{Name: "test"}
+	tpl := &model.TemplateModel{Name: "test"}
 	cfg.DispatchTemplateHooks(tpl)
 
 	if called {

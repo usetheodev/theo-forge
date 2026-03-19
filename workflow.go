@@ -1,11 +1,10 @@
 package forge
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/usetheo/theo/forge/model"
-	"sigs.k8s.io/yaml"
+	"github.com/usetheo/theo/forge/serialize"
 )
 
 const (
@@ -75,6 +74,32 @@ type Workflow struct {
 	RetryStrategy *RetryStrategy
 	// ImagePullSecrets are secrets for pulling images.
 	ImagePullSecrets []string
+	// PodSpecPatch is a JSON/YAML patch applied to the pod spec.
+	PodSpecPatch string
+	// Synchronization configures synchronization constraints.
+	Synchronization *model.SynchronizationModel
+	// Hooks are lifecycle hooks.
+	Hooks map[string]model.LifecycleHook
+	// DNSConfig specifies DNS parameters of the pod.
+	DNSConfig *model.DNSConfig
+	// DNSPolicy sets DNS policy for the pod.
+	DNSPolicy string
+	// PodDisruptionBudget configures PDB for workflow pods.
+	PodDisruptionBudget *model.PodDisruptionBudget
+	// PodMetadata sets metadata on workflow pods.
+	PodMetadata *model.MetadataModel
+	// SecurityContext holds pod-level security attributes.
+	SecurityContext *model.PodSecurityContext
+	// AutomountServiceAccountToken controls SA token mounting.
+	AutomountServiceAccountToken *bool
+	// WorkflowTemplateRef references a WorkflowTemplate instead of inline templates.
+	WorkflowTemplateRef *model.WorkflowTemplateRef
+	// ArtifactGC defines artifact garbage collection strategy.
+	ArtifactGC *model.ArtifactGCStrategy
+	// ArtifactRepositoryRef references an artifact repository config.
+	ArtifactRepositoryRef *model.ArtifactRepositoryRef
+	// TemplateDefaults defines default values for all templates.
+	TemplateDefaults *model.TemplateDefaults
 }
 
 func (w *Workflow) validate() error {
@@ -186,14 +211,9 @@ func (w *Workflow) Build() (model.WorkflowModel, error) {
 		kind = DefaultKind
 	}
 
-	templates := make([]model.TemplateModel, 0, len(w.Templates))
-	for _, t := range w.Templates {
-		m, err := t.BuildTemplate()
-		if err != nil {
-			return model.WorkflowModel{}, fmt.Errorf("template %q: %w", t.GetName(), err)
-		}
-		globalConfig.DispatchTemplateHooks(&m)
-		templates = append(templates, m)
+	templates, err := buildTemplateModels(w.Templates)
+	if err != nil {
+		return model.WorkflowModel{}, err
 	}
 
 	args, err := w.buildArguments()
@@ -228,26 +248,39 @@ func (w *Workflow) Build() (model.WorkflowModel, error) {
 			Annotations:  w.Annotations,
 		},
 		Spec: model.WorkflowSpec{
-			Entrypoint:            w.Entrypoint,
-			Templates:             templates,
-			Arguments:             args,
-			Volumes:               vols,
-			VolumeClaimTemplates:  pvcs,
-			ServiceAccountName:    w.ServiceAccountName,
-			Parallelism:           w.Parallelism,
-			ActiveDeadlineSeconds: w.ActiveDeadlineSeconds,
-			NodeSelector:          w.NodeSelector,
-			Tolerations:           w.Tolerations,
-			Suspend:               w.Suspend,
-			HostNetwork:           w.HostNetwork,
-			TTLStrategy:           w.TTLStrategy,
-			PodGC:                 w.PodGC,
-			Priority:              w.Priority,
-			OnExit:                w.OnExit,
-			Metrics:               w.buildMetrics(),
-			ArchiveLogs:           w.ArchiveLogs,
-			RetryStrategy:         rs,
-			ImagePullSecrets:      w.buildImagePullSecrets(),
+			Entrypoint:                   w.Entrypoint,
+			Templates:                    templates,
+			Arguments:                    args,
+			Volumes:                      vols,
+			VolumeClaimTemplates:         pvcs,
+			ServiceAccountName:           w.ServiceAccountName,
+			Parallelism:                  w.Parallelism,
+			ActiveDeadlineSeconds:        w.ActiveDeadlineSeconds,
+			NodeSelector:                 w.NodeSelector,
+			Tolerations:                  w.Tolerations,
+			Suspend:                      w.Suspend,
+			HostNetwork:                  w.HostNetwork,
+			TTLStrategy:                  w.TTLStrategy,
+			PodGC:                        w.PodGC,
+			Priority:                     w.Priority,
+			OnExit:                       w.OnExit,
+			Metrics:                      w.buildMetrics(),
+			ArchiveLogs:                  w.ArchiveLogs,
+			RetryStrategy:                rs,
+			ImagePullSecrets:             w.buildImagePullSecrets(),
+			PodSpecPatch:                 w.PodSpecPatch,
+			Synchronization:              w.Synchronization,
+			Hooks:                        w.Hooks,
+			DNSConfig:                    w.DNSConfig,
+			DNSPolicy:                    w.DNSPolicy,
+			PodDisruptionBudget:          w.PodDisruptionBudget,
+			PodMetadata:                  w.PodMetadata,
+			SecurityContext:              w.SecurityContext,
+			AutomountServiceAccountToken: w.AutomountServiceAccountToken,
+			WorkflowTemplateRef:          w.WorkflowTemplateRef,
+			ArtifactGC:                   w.ArtifactGC,
+			ArtifactRepositoryRef:        w.ArtifactRepositoryRef,
+			TemplateDefaults:             w.TemplateDefaults,
 		},
 	}
 
@@ -261,15 +294,7 @@ func (w *Workflow) ToDict() (map[string]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	data, err := json.Marshal(m)
-	if err != nil {
-		return nil, err
-	}
-	var result map[string]interface{}
-	if err := json.Unmarshal(data, &result); err != nil {
-		return nil, err
-	}
-	return result, nil
+	return serialize.WorkflowToDict(m)
 }
 
 // ToJSON converts the workflow to a JSON string.
@@ -278,11 +303,7 @@ func (w *Workflow) ToJSON() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	data, err := json.MarshalIndent(m, "", "  ")
-	if err != nil {
-		return "", err
-	}
-	return string(data), nil
+	return serialize.WorkflowToJSON(m)
 }
 
 // ToYAML converts the workflow to a YAML string.
@@ -291,29 +312,17 @@ func (w *Workflow) ToYAML() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	data, err := yaml.Marshal(m)
-	if err != nil {
-		return "", err
-	}
-	return string(data), nil
+	return serialize.WorkflowToYAML(m)
 }
 
 // FromYAML creates a WorkflowModel from a YAML string.
 func FromYAML(yamlStr string) (model.WorkflowModel, error) {
-	var m model.WorkflowModel
-	if err := yaml.Unmarshal([]byte(yamlStr), &m); err != nil {
-		return model.WorkflowModel{}, err
-	}
-	return m, nil
+	return serialize.WorkflowFromYAML(yamlStr)
 }
 
 // FromJSON creates a WorkflowModel from a JSON string.
 func FromJSON(jsonStr string) (model.WorkflowModel, error) {
-	var m model.WorkflowModel
-	if err := json.Unmarshal([]byte(jsonStr), &m); err != nil {
-		return model.WorkflowModel{}, err
-	}
-	return m, nil
+	return serialize.WorkflowFromJSON(jsonStr)
 }
 
 // GetParameter retrieves a parameter from the workflow arguments by name.

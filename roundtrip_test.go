@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/usetheo/theo/forge/model"
 	"sigs.k8s.io/yaml"
 )
 
@@ -33,48 +34,48 @@ func TestRoundTripYAML(t *testing.T) {
 		t.Fatalf("ToYAML: %v", err)
 	}
 
-	model, err := FromYAML(yamlStr)
+	wf, err := FromYAML(yamlStr)
 	if err != nil {
 		t.Fatalf("FromYAML: %v", err)
 	}
 
-	if model.APIVersion != DefaultAPIVersion {
-		t.Errorf("apiVersion = %q, want %q", model.APIVersion, DefaultAPIVersion)
+	if wf.APIVersion != DefaultAPIVersion {
+		t.Errorf("apiVersion = %q, want %q", wf.APIVersion, DefaultAPIVersion)
 	}
-	if model.Kind != DefaultKind {
-		t.Errorf("kind = %q, want %q", model.Kind, DefaultKind)
+	if wf.Kind != DefaultKind {
+		t.Errorf("kind = %q, want %q", wf.Kind, DefaultKind)
 	}
-	if model.Metadata.Name != "roundtrip-yaml" {
-		t.Errorf("name = %q", model.Metadata.Name)
+	if wf.Metadata.Name != "roundtrip-yaml" {
+		t.Errorf("name = %q", wf.Metadata.Name)
 	}
-	if model.Metadata.Namespace != "default" {
-		t.Errorf("namespace = %q", model.Metadata.Namespace)
+	if wf.Metadata.Namespace != "default" {
+		t.Errorf("namespace = %q", wf.Metadata.Namespace)
 	}
-	if model.Metadata.Labels["app"] != "test" {
-		t.Errorf("label app = %q", model.Metadata.Labels["app"])
+	if wf.Metadata.Labels["app"] != "test" {
+		t.Errorf("label app = %q", wf.Metadata.Labels["app"])
 	}
-	if model.Metadata.Annotations["note"] != "roundtrip" {
-		t.Errorf("annotation note = %q", model.Metadata.Annotations["note"])
+	if wf.Metadata.Annotations["note"] != "roundtrip" {
+		t.Errorf("annotation note = %q", wf.Metadata.Annotations["note"])
 	}
-	if model.Spec.Entrypoint != "main" {
-		t.Errorf("entrypoint = %q", model.Spec.Entrypoint)
+	if wf.Spec.Entrypoint != "main" {
+		t.Errorf("entrypoint = %q", wf.Spec.Entrypoint)
 	}
-	if len(model.Spec.Templates) != 1 {
-		t.Fatalf("templates = %d", len(model.Spec.Templates))
+	if len(wf.Spec.Templates) != 1 {
+		t.Fatalf("templates = %d", len(wf.Spec.Templates))
 	}
-	if model.Spec.Templates[0].Container == nil {
+	if wf.Spec.Templates[0].Container == nil {
 		t.Fatal("expected container template")
 	}
-	if model.Spec.Templates[0].Container.Image != "alpine:3.18" {
-		t.Errorf("image = %q", model.Spec.Templates[0].Container.Image)
+	if wf.Spec.Templates[0].Container.Image != "alpine:3.18" {
+		t.Errorf("image = %q", wf.Spec.Templates[0].Container.Image)
 	}
-	if model.Spec.Arguments == nil || len(model.Spec.Arguments.Parameters) != 1 {
+	if wf.Spec.Arguments == nil || len(wf.Spec.Arguments.Parameters) != 1 {
 		t.Fatalf("expected 1 argument parameter")
 	}
-	if model.Spec.Arguments.Parameters[0].Name != "greeting" {
-		t.Errorf("argument name = %q", model.Spec.Arguments.Parameters[0].Name)
+	if wf.Spec.Arguments.Parameters[0].Name != "greeting" {
+		t.Errorf("argument name = %q", wf.Spec.Arguments.Parameters[0].Name)
 	}
-	if model.Spec.Arguments.Parameters[0].Value == nil || *model.Spec.Arguments.Parameters[0].Value != "world" {
+	if wf.Spec.Arguments.Parameters[0].Value == nil || *wf.Spec.Arguments.Parameters[0].Value != "world" {
 		t.Errorf("argument value mismatch")
 	}
 }
@@ -98,22 +99,22 @@ func TestRoundTripJSON(t *testing.T) {
 		t.Fatalf("ToJSON: %v", err)
 	}
 
-	model, err := FromJSON(jsonStr)
+	wf, err := FromJSON(jsonStr)
 	if err != nil {
 		t.Fatalf("FromJSON: %v", err)
 	}
 
-	if model.Metadata.Name != "roundtrip-json" {
-		t.Errorf("name = %q", model.Metadata.Name)
+	if wf.Metadata.Name != "roundtrip-json" {
+		t.Errorf("name = %q", wf.Metadata.Name)
 	}
-	if len(model.Spec.Templates) != 1 {
-		t.Fatalf("templates = %d", len(model.Spec.Templates))
+	if len(wf.Spec.Templates) != 1 {
+		t.Fatalf("templates = %d", len(wf.Spec.Templates))
 	}
-	if model.Spec.Templates[0].Script == nil {
+	if wf.Spec.Templates[0].Script == nil {
 		t.Fatal("expected script template")
 	}
-	if model.Spec.Templates[0].Script.Source != "print('hello')" {
-		t.Errorf("source = %q", model.Spec.Templates[0].Script.Source)
+	if wf.Spec.Templates[0].Script.Source != "print('hello')" {
+		t.Errorf("source = %q", wf.Spec.Templates[0].Script.Source)
 	}
 }
 
@@ -141,17 +142,17 @@ func TestRoundTripDAG(t *testing.T) {
 		t.Fatalf("ToYAML: %v", err)
 	}
 
-	model, err := FromYAML(yamlStr)
+	wf, err := FromYAML(yamlStr)
 	if err != nil {
 		t.Fatalf("FromYAML: %v", err)
 	}
 
-	if len(model.Spec.Templates) != 2 {
-		t.Fatalf("templates = %d", len(model.Spec.Templates))
+	if len(wf.Spec.Templates) != 2 {
+		t.Fatalf("templates = %d", len(wf.Spec.Templates))
 	}
 
-	var dagModel *DAGModel
-	for _, tpl := range model.Spec.Templates {
+	var dagModel *model.DAGModel
+	for _, tpl := range wf.Spec.Templates {
 		if tpl.Name == "pipeline" {
 			dagModel = tpl.DAG
 		}
@@ -163,7 +164,7 @@ func TestRoundTripDAG(t *testing.T) {
 		t.Fatalf("dag tasks = %d", len(dagModel.Tasks))
 	}
 
-	taskMap := make(map[string]DAGTaskModel)
+	taskMap := make(map[string]model.DAGTaskModel)
 	for _, task := range dagModel.Tasks {
 		taskMap[task.Name] = task
 	}
@@ -195,13 +196,13 @@ func TestRoundTripSteps(t *testing.T) {
 		t.Fatalf("ToYAML: %v", err)
 	}
 
-	model, err := FromYAML(yamlStr)
+	wf, err := FromYAML(yamlStr)
 	if err != nil {
 		t.Fatalf("FromYAML: %v", err)
 	}
 
-	var stepsGroups [][]StepModel
-	for _, tpl := range model.Spec.Templates {
+	var stepsGroups [][]model.StepModel
+	for _, tpl := range wf.Spec.Templates {
 		if tpl.Name == "sequential" {
 			stepsGroups = tpl.Steps
 		}
@@ -232,19 +233,19 @@ func TestRoundTripWorkflowTemplate(t *testing.T) {
 		t.Fatalf("ToYAML: %v", err)
 	}
 
-	var model WorkflowTemplateModel
-	if err := yaml.Unmarshal([]byte(yamlStr), &model); err != nil {
+	var wfModel model.WorkflowTemplateModel
+	if err := yaml.Unmarshal([]byte(yamlStr), &wfModel); err != nil {
 		t.Fatalf("Unmarshal: %v", err)
 	}
 
-	if model.Kind != "WorkflowTemplate" {
-		t.Errorf("kind = %q", model.Kind)
+	if wfModel.Kind != "WorkflowTemplate" {
+		t.Errorf("kind = %q", wfModel.Kind)
 	}
-	if model.Metadata.Name != "my-template" {
-		t.Errorf("name = %q", model.Metadata.Name)
+	if wfModel.Metadata.Name != "my-template" {
+		t.Errorf("name = %q", wfModel.Metadata.Name)
 	}
-	if model.Metadata.Namespace != "argo" {
-		t.Errorf("namespace = %q", model.Metadata.Namespace)
+	if wfModel.Metadata.Namespace != "argo" {
+		t.Errorf("namespace = %q", wfModel.Metadata.Namespace)
 	}
 }
 
@@ -264,19 +265,19 @@ func TestRoundTripCronWorkflow(t *testing.T) {
 		t.Fatalf("ToJSON: %v", err)
 	}
 
-	var model CronWorkflowModel
-	if err := json.Unmarshal([]byte(jsonStr), &model); err != nil {
+	var cwModel model.CronWorkflowModel
+	if err := json.Unmarshal([]byte(jsonStr), &cwModel); err != nil {
 		t.Fatalf("Unmarshal: %v", err)
 	}
 
-	if model.Kind != "CronWorkflow" {
-		t.Errorf("kind = %q", model.Kind)
+	if cwModel.Kind != "CronWorkflow" {
+		t.Errorf("kind = %q", cwModel.Kind)
 	}
-	if model.Spec.Schedule != "0 0 * * *" {
-		t.Errorf("schedule = %q", model.Spec.Schedule)
+	if cwModel.Spec.Schedule != "0 0 * * *" {
+		t.Errorf("schedule = %q", cwModel.Spec.Schedule)
 	}
-	if model.Spec.Timezone != "UTC" {
-		t.Errorf("timezone = %q", model.Spec.Timezone)
+	if cwModel.Spec.Timezone != "UTC" {
+		t.Errorf("timezone = %q", cwModel.Spec.Timezone)
 	}
 }
 
@@ -304,12 +305,12 @@ func TestRoundTripPreservesContainerFields(t *testing.T) {
 		t.Fatalf("ToYAML: %v", err)
 	}
 
-	model, err := FromYAML(yamlStr)
+	wf, err := FromYAML(yamlStr)
 	if err != nil {
 		t.Fatalf("FromYAML: %v", err)
 	}
 
-	c := model.Spec.Templates[0].Container
+	c := wf.Spec.Templates[0].Container
 	if c.WorkingDir != "/app" {
 		t.Errorf("workingDir = %q", c.WorkingDir)
 	}

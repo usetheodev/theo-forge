@@ -1,6 +1,10 @@
 package forge
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/usetheo/theo/forge/model"
+)
 
 func TestUserContainerBuild(t *testing.T) {
 	uc := &UserContainer{
@@ -95,7 +99,7 @@ func TestUserContainerAsInitContainer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tpl.InitContainers = []ContainerModel{initModel}
+	tpl.InitContainers = []model.ContainerModel{initModel}
 
 	if len(tpl.InitContainers) != 1 {
 		t.Fatalf("initContainers = %d", len(tpl.InitContainers))
@@ -122,7 +126,7 @@ func TestUserContainerAsSidecar(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tpl.Sidecars = []ContainerModel{sidecarModel}
+	tpl.Sidecars = []model.ContainerModel{sidecarModel}
 
 	if len(tpl.Sidecars) != 1 {
 		t.Fatalf("sidecars = %d", len(tpl.Sidecars))

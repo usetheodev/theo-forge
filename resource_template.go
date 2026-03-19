@@ -1,6 +1,10 @@
 package forge
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/usetheo/theo/forge/model"
+)
 
 // ResourceTemplate creates/applies K8s resources via Argo.
 type ResourceTemplate struct {
@@ -18,6 +22,20 @@ type ResourceTemplate struct {
 	Inputs []Parameter
 	// Outputs are the template outputs.
 	Outputs []Parameter
+	// InputArtifacts are input artifacts.
+	InputArtifacts []ArtifactBuilder
+	// OutputArtifacts are output artifacts.
+	OutputArtifacts []ArtifactBuilder
+	// Flags are extra flags passed to kubectl.
+	Flags []string
+	// SetOwnerReference adds owner reference to the resource.
+	SetOwnerReference *bool
+	// MergeStrategy for patch operations.
+	MergeStrategy string
+	// Labels for the template.
+	Labels map[string]string
+	// Annotations for the template.
+	Annotations map[string]string
 }
 
 func (r *ResourceTemplate) GetName() string {
@@ -25,51 +43,41 @@ func (r *ResourceTemplate) GetName() string {
 }
 
 // BuildTemplate builds the Argo Template for this resource template.
-func (r *ResourceTemplate) BuildTemplate() (TemplateModel, error) {
+func (r *ResourceTemplate) BuildTemplate() (model.TemplateModel, error) {
 	if r.Name == "" {
-		return TemplateModel{}, fmt.Errorf("resource template name cannot be empty")
+		return model.TemplateModel{}, fmt.Errorf("resource template name cannot be empty")
 	}
 	if r.Action == "" {
-		return TemplateModel{}, fmt.Errorf("resource template action cannot be empty")
+		return model.TemplateModel{}, fmt.Errorf("resource template action cannot be empty")
 	}
 	if r.Manifest == "" {
-		return TemplateModel{}, fmt.Errorf("resource template manifest cannot be empty")
+		return model.TemplateModel{}, fmt.Errorf("resource template manifest cannot be empty")
 	}
 
-	var inputs *InputsModel
-	if len(r.Inputs) > 0 {
-		inputs = &InputsModel{}
-		for _, p := range r.Inputs {
-			m, err := p.AsInput()
-			if err != nil {
-				return TemplateModel{}, fmt.Errorf("resource template %q input parameter %q: %w", r.Name, p.Name, err)
-			}
-			inputs.Parameters = append(inputs.Parameters, m)
-		}
+	inputs, err := buildInputsFromParams(r.Inputs, r.InputArtifacts)
+	if err != nil {
+		return model.TemplateModel{}, fmt.Errorf("resource template %q: %w", r.Name, err)
 	}
 
-	var outputs *OutputsModel
-	if len(r.Outputs) > 0 {
-		outputs = &OutputsModel{}
-		for _, p := range r.Outputs {
-			m, err := p.AsOutput()
-			if err != nil {
-				return TemplateModel{}, fmt.Errorf("resource template %q output parameter %q: %w", r.Name, p.Name, err)
-			}
-			outputs.Parameters = append(outputs.Parameters, m)
-		}
+	outputs, err2 := buildOutputsFromParams(r.Outputs, r.OutputArtifacts)
+	if err2 != nil {
+		return model.TemplateModel{}, fmt.Errorf("resource template %q: %w", r.Name, err2)
 	}
 
-	return TemplateModel{
+	return model.TemplateModel{
 		Name: r.Name,
-		Resource: &ResourceTplModel{
-			Action:           r.Action,
-			Manifest:         r.Manifest,
-			SuccessCondition: r.SuccessCondition,
-			FailureCondition: r.FailureCondition,
+		Resource: &model.ResourceTplModel{
+			Action:            r.Action,
+			Manifest:          r.Manifest,
+			SuccessCondition:  r.SuccessCondition,
+			FailureCondition:  r.FailureCondition,
+			Flags:             r.Flags,
+			SetOwnerReference: r.SetOwnerReference,
+			MergeStrategy:     r.MergeStrategy,
 		},
-		Inputs:  inputs,
-		Outputs: outputs,
+		Inputs:   inputs,
+		Outputs:  outputs,
+		Metadata: buildMetadataModel(r.Labels, r.Annotations),
 	}, nil
 }
 
@@ -79,6 +87,10 @@ type Suspend struct {
 	Name string
 	// Duration is how long to suspend (e.g., "30s", "5m").
 	Duration string
+	// Inputs are the template inputs.
+	Inputs []Parameter
+	// Outputs are the template outputs.
+	Outputs []Parameter
 }
 
 func (s *Suspend) GetName() string {
@@ -86,13 +98,26 @@ func (s *Suspend) GetName() string {
 }
 
 // BuildTemplate builds the Argo Template for this suspend template.
-func (s *Suspend) BuildTemplate() (TemplateModel, error) {
+func (s *Suspend) BuildTemplate() (model.TemplateModel, error) {
 	if s.Name == "" {
-		return TemplateModel{}, fmt.Errorf("suspend template name cannot be empty")
+		return model.TemplateModel{}, fmt.Errorf("suspend template name cannot be empty")
 	}
-	return TemplateModel{
+
+	inputs, err := buildInputsFromParams(s.Inputs, nil)
+	if err != nil {
+		return model.TemplateModel{}, fmt.Errorf("suspend %q: %w", s.Name, err)
+	}
+
+	outputs, err := buildOutputsFromParams(s.Outputs, nil)
+	if err != nil {
+		return model.TemplateModel{}, fmt.Errorf("suspend %q: %w", s.Name, err)
+	}
+
+	return model.TemplateModel{
 		Name:    s.Name,
-		Suspend: &SuspendModel{Duration: s.Duration},
+		Suspend: &model.SuspendModel{Duration: s.Duration},
+		Inputs:  inputs,
+		Outputs: outputs,
 	}, nil
 }
 
@@ -123,46 +148,46 @@ func (h *HTTPTemplate) GetName() string {
 }
 
 // BuildTemplate builds the Argo Template for this HTTP template.
-func (h *HTTPTemplate) BuildTemplate() (TemplateModel, error) {
+func (h *HTTPTemplate) BuildTemplate() (model.TemplateModel, error) {
 	if h.Name == "" {
-		return TemplateModel{}, fmt.Errorf("HTTP template name cannot be empty")
+		return model.TemplateModel{}, fmt.Errorf("HTTP template name cannot be empty")
 	}
 	if h.URL == "" {
-		return TemplateModel{}, fmt.Errorf("HTTP template URL cannot be empty")
+		return model.TemplateModel{}, fmt.Errorf("HTTP template URL cannot be empty")
 	}
 
-	headers := make([]HTTPHeader, 0, len(h.Headers))
+	headers := make([]model.HTTPHeader, 0, len(h.Headers))
 	for k, v := range h.Headers {
-		headers = append(headers, HTTPHeader{Name: k, Value: v})
+		headers = append(headers, model.HTTPHeader{Name: k, Value: v})
 	}
 
-	var inputs *InputsModel
+	var inputs *model.InputsModel
 	if len(h.Inputs) > 0 {
-		inputs = &InputsModel{}
+		inputs = &model.InputsModel{}
 		for _, p := range h.Inputs {
 			m, err := p.AsInput()
 			if err != nil {
-				return TemplateModel{}, fmt.Errorf("HTTP template %q input parameter %q: %w", h.Name, p.Name, err)
+				return model.TemplateModel{}, fmt.Errorf("HTTP template %q input parameter %q: %w", h.Name, p.Name, err)
 			}
 			inputs.Parameters = append(inputs.Parameters, m)
 		}
 	}
 
-	var outputs *OutputsModel
+	var outputs *model.OutputsModel
 	if len(h.Outputs) > 0 {
-		outputs = &OutputsModel{}
+		outputs = &model.OutputsModel{}
 		for _, p := range h.Outputs {
 			m, err := p.AsOutput()
 			if err != nil {
-				return TemplateModel{}, fmt.Errorf("HTTP template %q output parameter %q: %w", h.Name, p.Name, err)
+				return model.TemplateModel{}, fmt.Errorf("HTTP template %q output parameter %q: %w", h.Name, p.Name, err)
 			}
 			outputs.Parameters = append(outputs.Parameters, m)
 		}
 	}
 
-	return TemplateModel{
+	return model.TemplateModel{
 		Name: h.Name,
-		HTTP: &HTTPModel{
+		HTTP: &model.HTTPModel{
 			URL:              h.URL,
 			Method:           h.Method,
 			Headers:          headers,

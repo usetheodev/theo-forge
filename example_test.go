@@ -3,6 +3,8 @@ package forge
 import (
 	"strings"
 	"testing"
+
+	"github.com/usetheo/theo/forge/expr"
 )
 
 // TestExampleDiamondDAG builds a complete diamond DAG workflow and validates YAML.
@@ -11,7 +13,7 @@ func TestExampleDiamondDAG(t *testing.T) {
 		Name:    "echo",
 		Image:   "alpine:3.18",
 		Command: []string{"echo"},
-		Args:    []string{InputParam("msg")},
+		Args:    []string{expr.InputParam("msg")},
 		Inputs:  []Parameter{{Name: "msg"}},
 	}
 
@@ -125,7 +127,7 @@ func TestExampleParameterPassing(t *testing.T) {
 		Name:    "consume",
 		Image:   "alpine:3.18",
 		Command: []string{"echo"},
-		Args:    []string{InputParam("msg")},
+		Args:    []string{expr.InputParam("msg")},
 		Inputs:  []Parameter{{Name: "msg"}},
 	}
 
@@ -135,7 +137,7 @@ func TestExampleParameterPassing(t *testing.T) {
 		Name:     "consume",
 		Template: "consume",
 		Arguments: []Parameter{
-			{Name: "msg", Value: ptrStr(TaskOutputParam("generate", "result"))},
+			{Name: "msg", Value: ptrStr(expr.TaskOutputParam("generate", "result"))},
 		},
 	}
 	genTask.Then(consumeTask)
@@ -252,7 +254,7 @@ func TestExampleWorkflowTemplateRef(t *testing.T) {
 				Name:    "echo",
 				Image:   "alpine:3.18",
 				Command: []string{"echo"},
-				Args:    []string{InputParam("msg")},
+				Args:    []string{expr.InputParam("msg")},
 				Inputs:  []Parameter{{Name: "msg"}},
 			},
 		},

@@ -3,7 +3,7 @@ package model
 // EnvVarModel is the serializable K8s EnvVar.
 type EnvVarModel struct {
 	Name      string        `json:"name" yaml:"name"`
-	Value     string        `json:"value,omitempty" yaml:"value,omitempty"`
+	Value     *string       `json:"value,omitempty" yaml:"value,omitempty"`
 	ValueFrom *EnvVarSource `json:"valueFrom,omitempty" yaml:"valueFrom,omitempty"`
 }
 

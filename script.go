@@ -52,6 +52,20 @@ type Script struct {
 	Annotations map[string]string
 	// Metrics for the template.
 	Metrics []Metric
+	// Daemon marks this script as a daemon.
+	Daemon *bool
+	// Memoize caches template outputs.
+	Memoize *model.MemoizeModel
+	// Synchronization constraints.
+	Synchronization *model.SynchronizationModel
+	// PodSpecPatch is a JSON/YAML patch for the pod spec.
+	PodSpecPatch string
+	// Hooks are lifecycle hooks.
+	Hooks map[string]model.LifecycleHook
+	// Sidecars are sidecar containers.
+	Sidecars []UserContainer
+	// Tolerations for pod scheduling.
+	Tolerations []model.Toleration
 }
 
 func (s *Script) GetName() string {
@@ -77,6 +91,11 @@ func (s *Script) BuildTemplate() (model.TemplateModel, error) {
 		return model.TemplateModel{}, fmt.Errorf("script %q: %w", s.Name, err)
 	}
 
+	var sidecars []model.ContainerModel
+	for _, sc := range s.Sidecars {
+		sidecars = append(sidecars, sc.Build())
+	}
+
 	return model.TemplateModel{
 		Name: s.Name,
 		Script: &model.ScriptModel{
@@ -99,5 +118,12 @@ func (s *Script) BuildTemplate() (model.TemplateModel, error) {
 		NodeSelector:          s.NodeSelector,
 		ServiceAccountName:    s.ServiceAccountName,
 		Metrics:               buildMetricsModel(s.Metrics),
+		Daemon:                s.Daemon,
+		Memoize:               s.Memoize,
+		Synchronization:       s.Synchronization,
+		PodSpecPatch:          s.PodSpecPatch,
+		Hooks:                 s.Hooks,
+		Sidecars:              sidecars,
+		Tolerations:           s.Tolerations,
 	}, nil
 }

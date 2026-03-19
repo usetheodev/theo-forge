@@ -52,6 +52,14 @@ type Task struct {
 	WithItems []interface{}
 	// WithParam enables fan-out from a parameter.
 	WithParam string
+	// WithSequence generates a list of numbers for fan-out.
+	WithSequence *model.Sequence
+	// Inline is an inline template definition.
+	Inline Templatable
+	// OnExit is the exit handler template name for this task.
+	OnExit string
+	// Hooks are lifecycle hooks for this task.
+	Hooks map[string]model.LifecycleHook
 }
 
 // GetOutputParameter returns a parameter reference for this task's output.
@@ -131,10 +139,20 @@ func (t *Task) BuildDAGTask() (model.DAGTaskModel, error) {
 		}
 	}
 
+	var inline *model.TemplateModel
+	if t.Inline != nil {
+		m, err := t.Inline.BuildTemplate()
+		if err != nil {
+			return model.DAGTaskModel{}, fmt.Errorf("task %q inline: %w", t.Name, err)
+		}
+		inline = &m
+	}
+
 	return model.DAGTaskModel{
 		Name:         t.Name,
 		Template:     t.Template,
 		TemplateRef:  t.TemplateRef,
+		Inline:       inline,
 		Dependencies: t.Dependencies,
 		Depends:      t.Depends,
 		Arguments:    args,
@@ -142,6 +160,9 @@ func (t *Task) BuildDAGTask() (model.DAGTaskModel, error) {
 		ContinueOn:   t.ContinueOn,
 		WithItems:    t.WithItems,
 		WithParam:    t.WithParam,
+		WithSequence: t.WithSequence,
+		OnExit:       t.OnExit,
+		Hooks:        t.Hooks,
 	}, nil
 }
 

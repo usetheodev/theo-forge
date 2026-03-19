@@ -14,7 +14,8 @@ type Env struct {
 }
 
 func (e Env) Build() model.EnvVarModel {
-	return model.EnvVarModel{Name: e.Name, Value: e.Value}
+	v := e.Value
+	return model.EnvVarModel{Name: e.Name, Value: &v}
 }
 
 // SecretEnv reads from a K8s Secret.

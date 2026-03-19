@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/usetheo/theo/forge/expr"
 )
 
 var updateGolden = flag.Bool("update-golden", false, "update golden test files")
@@ -56,7 +58,7 @@ func TestGoldenDiamondDAG(t *testing.T) {
 		Name:    "echo",
 		Image:   "alpine:3.18",
 		Command: []string{"echo"},
-		Args:    []string{InputParam("msg")},
+		Args:    []string{expr.InputParam("msg")},
 		Inputs:  []Parameter{{Name: "msg"}},
 	}
 

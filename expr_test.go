@@ -1,31 +1,35 @@
 package forge
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/usetheo/theo/forge/expr"
+)
 
 func TestExprConstants(t *testing.T) {
 	tests := []struct {
 		name string
-		expr Expr
+		ex expr.Expr
 		want string
 	}{
-		{"integer", C(1), "1"},
-		{"nil", C(nil), "nil"},
-		{"true", C(true), "true"},
-		{"false", C(false), "false"},
-		{"float", C(3.14), "3.14"},
-		{"string", C("hello"), "'hello'"},
+		{"integer", expr.C(1), "1"},
+		{"nil", expr.C(nil), "nil"},
+		{"true", expr.C(true), "true"},
+		{"false", expr.C(false), "false"},
+		{"float", expr.C(3.14), "3.14"},
+		{"string", expr.C("hello"), "'hello'"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.expr.String() != tt.want {
-				t.Errorf("got %q, want %q", tt.expr.String(), tt.want)
+			if tt.ex.String() != tt.want {
+				t.Errorf("got %q, want %q", tt.ex.String(), tt.want)
 			}
 		})
 	}
 }
 
 func TestExprTemplateFormat(t *testing.T) {
-	e := E("inputs.parameters.msg")
+	e := expr.E("inputs.parameters.msg")
 	if e.Tmpl() != "{{inputs.parameters.msg}}" {
 		t.Errorf("Tmpl = %q", e.Tmpl())
 	}
@@ -35,7 +39,7 @@ func TestExprTemplateFormat(t *testing.T) {
 }
 
 func TestExprAttrChaining(t *testing.T) {
-	e := E("tasks").Attr("task-a").Attr("outputs").Attr("result")
+	e := expr.E("tasks").Attr("task-a").Attr("outputs").Attr("result")
 	want := "tasks.task-a.outputs.result"
 	if e.String() != want {
 		t.Errorf("got %q, want %q", e.String(), want)
@@ -45,30 +49,30 @@ func TestExprAttrChaining(t *testing.T) {
 func TestExprIndex(t *testing.T) {
 	tests := []struct {
 		name string
-		expr Expr
+		ex expr.Expr
 		want string
 	}{
-		{"index", E("test").Index(2), "test[2]"},
-		{"key", E("test").Key("as"), `test["as"]`},
-		{"slice", E("test").Slice(1, 9), "test[1:9]"},
-		{"slice-from", E("test").SliceFrom(1), "test[1:]"},
-		{"slice-to", E("test").SliceTo(9), "test[:9]"},
+		{"index", expr.E("test").Index(2), "test[2]"},
+		{"key", expr.E("test").Key("as"), `test["as"]`},
+		{"slice", expr.E("test").Slice(1, 9), "test[1:9]"},
+		{"slice-from", expr.E("test").SliceFrom(1), "test[1:]"},
+		{"slice-to", expr.E("test").SliceTo(9), "test[:9]"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.expr.String() != tt.want {
-				t.Errorf("got %q, want %q", tt.expr.String(), tt.want)
+			if tt.ex.String() != tt.want {
+				t.Errorf("got %q, want %q", tt.ex.String(), tt.want)
 			}
 		})
 	}
 }
 
 func TestExprComparisons(t *testing.T) {
-	x := E("x")
-	y := E("y")
+	x := expr.E("x")
+	y := expr.E("y")
 	tests := []struct {
 		name string
-		expr Expr
+		ex expr.Expr
 		want string
 	}{
 		{"equals", x.Equals(y), "x == y"},
@@ -80,19 +84,19 @@ func TestExprComparisons(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.expr.String() != tt.want {
-				t.Errorf("got %q, want %q", tt.expr.String(), tt.want)
+			if tt.ex.String() != tt.want {
+				t.Errorf("got %q, want %q", tt.ex.String(), tt.want)
 			}
 		})
 	}
 }
 
 func TestExprArithmetic(t *testing.T) {
-	x := E("x")
-	y := E("y")
+	x := expr.E("x")
+	y := expr.E("y")
 	tests := []struct {
 		name string
-		expr Expr
+		ex expr.Expr
 		want string
 	}{
 		{"add", x.Add(y), "x + y"},
@@ -100,12 +104,12 @@ func TestExprArithmetic(t *testing.T) {
 		{"mul", x.Mul(y), "x * y"},
 		{"div", x.Div(y), "x / y"},
 		{"mod", x.Mod(y), "x % y"},
-		{"pow", x.Pow(C(2)), "x ** 2"},
+		{"pow", x.Pow(expr.C(2)), "x ** 2"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.expr.String() != tt.want {
-				t.Errorf("got %q, want %q", tt.expr.String(), tt.want)
+			if tt.ex.String() != tt.want {
+				t.Errorf("got %q, want %q", tt.ex.String(), tt.want)
 			}
 		})
 	}
@@ -113,7 +117,7 @@ func TestExprArithmetic(t *testing.T) {
 
 func TestExprComplex(t *testing.T) {
 	// x**2 + y
-	expr := E("x").Pow(C(2)).Add(E("y"))
+	expr := expr.E("x").Pow(expr.C(2)).Add(expr.E("y"))
 	if expr.String() != "x ** 2 + y" {
 		t.Errorf("got %q", expr.String())
 	}
@@ -122,27 +126,27 @@ func TestExprComplex(t *testing.T) {
 func TestExprUnary(t *testing.T) {
 	tests := []struct {
 		name string
-		expr Expr
+		ex expr.Expr
 		want string
 	}{
-		{"neg", E("y").Neg(), "-y"},
-		{"not", E("y").Not(), "!y"},
+		{"neg", expr.E("y").Neg(), "-y"},
+		{"not", expr.E("y").Not(), "!y"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.expr.String() != tt.want {
-				t.Errorf("got %q, want %q", tt.expr.String(), tt.want)
+			if tt.ex.String() != tt.want {
+				t.Errorf("got %q, want %q", tt.ex.String(), tt.want)
 			}
 		})
 	}
 }
 
 func TestExprLogical(t *testing.T) {
-	a := E("a")
-	b := E("b")
+	a := expr.E("a")
+	b := expr.E("b")
 	tests := []struct {
 		name string
-		expr Expr
+		ex expr.Expr
 		want string
 	}{
 		{"and", a.And(b), "a && b"},
@@ -150,18 +154,18 @@ func TestExprLogical(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.expr.String() != tt.want {
-				t.Errorf("got %q, want %q", tt.expr.String(), tt.want)
+			if tt.ex.String() != tt.want {
+				t.Errorf("got %q, want %q", tt.ex.String(), tt.want)
 			}
 		})
 	}
 }
 
 func TestExprStringMethods(t *testing.T) {
-	e := E("test")
+	e := expr.E("test")
 	tests := []struct {
 		name string
-		expr Expr
+		ex expr.Expr
 		want string
 	}{
 		{"contains", e.Contains("hello"), "test.contains('hello')"},
@@ -172,18 +176,18 @@ func TestExprStringMethods(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.expr.String() != tt.want {
-				t.Errorf("got %q, want %q", tt.expr.String(), tt.want)
+			if tt.ex.String() != tt.want {
+				t.Errorf("got %q, want %q", tt.ex.String(), tt.want)
 			}
 		})
 	}
 }
 
 func TestExprConversions(t *testing.T) {
-	e := E("value")
+	e := expr.E("value")
 	tests := []struct {
 		name string
-		expr Expr
+		ex expr.Expr
 		want string
 	}{
 		{"toJson", e.ToJSON(), "value.toJson()"},
@@ -193,15 +197,15 @@ func TestExprConversions(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.expr.String() != tt.want {
-				t.Errorf("got %q, want %q", tt.expr.String(), tt.want)
+			if tt.ex.String() != tt.want {
+				t.Errorf("got %q, want %q", tt.ex.String(), tt.want)
 			}
 		})
 	}
 }
 
 func TestExprTernary(t *testing.T) {
-	e := E("test").Check(E("test1"), E("test2"))
+	e := expr.E("test").Check(expr.E("test1"), expr.E("test2"))
 	want := "test ? test1 : test2"
 	if e.String() != want {
 		t.Errorf("got %q, want %q", e.String(), want)
@@ -211,16 +215,16 @@ func TestExprTernary(t *testing.T) {
 func TestExprCollections(t *testing.T) {
 	tests := []struct {
 		name string
-		expr Expr
+		ex expr.Expr
 		want string
 	}{
-		{"map", E("list").Map(E("x, x * 2")), "list.map(x, x * 2)"},
-		{"filter", E("list").Filter(E("x, x > 0")), "list.filter(x, x > 0)"},
+		{"map", expr.E("list").Map(expr.E("x, x * 2")), "list.map(x, x * 2)"},
+		{"filter", expr.E("list").Filter(expr.E("x, x > 0")), "list.filter(x, x > 0)"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.expr.String() != tt.want {
-				t.Errorf("got %q, want %q", tt.expr.String(), tt.want)
+			if tt.ex.String() != tt.want {
+				t.Errorf("got %q, want %q", tt.ex.String(), tt.want)
 			}
 		})
 	}
@@ -229,18 +233,18 @@ func TestExprCollections(t *testing.T) {
 func TestSprigFunctions(t *testing.T) {
 	tests := []struct {
 		name string
-		expr Expr
+		ex expr.Expr
 		want string
 	}{
-		{"trim", Sprig.Trim("c"), "sprig.trim('c')"},
-		{"upper", Sprig.Upper("hello"), "sprig.upper('hello')"},
-		{"lower", Sprig.Lower("HELLO"), "sprig.lower('HELLO')"},
-		{"replace", Sprig.Replace("old", "new", "text"), "sprig.replace('old', 'new', 'text')"},
+		{"trim", expr.Sprig.Trim("c"), "sprig.trim('c')"},
+		{"upper", expr.Sprig.Upper("hello"), "sprig.upper('hello')"},
+		{"lower", expr.Sprig.Lower("HELLO"), "sprig.lower('HELLO')"},
+		{"replace", expr.Sprig.Replace("old", "new", "text"), "sprig.replace('old', 'new', 'text')"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.expr.String() != tt.want {
-				t.Errorf("got %q, want %q", tt.expr.String(), tt.want)
+			if tt.ex.String() != tt.want {
+				t.Errorf("got %q, want %q", tt.ex.String(), tt.want)
 			}
 		})
 	}
@@ -252,12 +256,12 @@ func TestParamRefHelpers(t *testing.T) {
 		got  string
 		want string
 	}{
-		{"InputParam", InputParam("msg"), "{{inputs.parameters.msg}}"},
-		{"TaskOutputParam", TaskOutputParam("task-a", "result"), "{{tasks.task-a.outputs.parameters.result}}"},
-		{"StepOutputParam", StepOutputParam("step-1", "output"), "{{steps.step-1.outputs.parameters.output}}"},
-		{"TaskOutputResult", TaskOutputResult("task-a"), "{{tasks.task-a.outputs.result}}"},
-		{"StepOutputResult", StepOutputResult("step-1"), "{{steps.step-1.outputs.result}}"},
-		{"WorkflowParam", WorkflowParam("env"), "{{workflow.parameters.env}}"},
+		{"InputParam", expr.InputParam("msg"), "{{inputs.parameters.msg}}"},
+		{"TaskOutputParam", expr.TaskOutputParam("task-a", "result"), "{{tasks.task-a.outputs.parameters.result}}"},
+		{"StepOutputParam", expr.StepOutputParam("step-1", "output"), "{{steps.step-1.outputs.parameters.output}}"},
+		{"TaskOutputResult", expr.TaskOutputResult("task-a"), "{{tasks.task-a.outputs.result}}"},
+		{"StepOutputResult", expr.StepOutputResult("step-1"), "{{steps.step-1.outputs.result}}"},
+		{"WorkflowParam", expr.WorkflowParam("env"), "{{workflow.parameters.env}}"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -271,28 +275,28 @@ func TestParamRefHelpers(t *testing.T) {
 func TestExprHelperFunctions(t *testing.T) {
 	tests := []struct {
 		name string
-		expr Expr
+		ex expr.Expr
 		want string
 	}{
-		{"tasks", Tasks("my-task").Attr("outputs").Attr("result"), "tasks.my-task.outputs.result"},
-		{"steps", StepsExpr("my-step").Attr("outputs").Attr("result"), "steps.my-step.outputs.result"},
-		{"inputs", Inputs().Attr("parameters").Attr("msg"), "inputs.parameters.msg"},
-		{"outputs", OutputsExpr().Attr("parameters").Attr("result"), "outputs.parameters.result"},
-		{"item", Item(), "item"},
-		{"item-attr", Item().Attr("name"), "item.name"},
-		{"workflow", WorkflowExpr().Attr("name"), "workflow.name"},
+		{"tasks", expr.Tasks("my-task").Attr("outputs").Attr("result"), "tasks.my-task.outputs.result"},
+		{"steps", expr.Steps("my-step").Attr("outputs").Attr("result"), "steps.my-step.outputs.result"},
+		{"inputs", expr.Inputs().Attr("parameters").Attr("msg"), "inputs.parameters.msg"},
+		{"outputs", expr.Outputs().Attr("parameters").Attr("result"), "outputs.parameters.result"},
+		{"item", expr.Item(), "item"},
+		{"item-attr", expr.Item().Attr("name"), "item.name"},
+		{"workflow", expr.Workflow().Attr("name"), "workflow.name"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.expr.String() != tt.want {
-				t.Errorf("got %q, want %q", tt.expr.String(), tt.want)
+			if tt.ex.String() != tt.want {
+				t.Errorf("got %q, want %q", tt.ex.String(), tt.want)
 			}
 		})
 	}
 }
 
 func TestExprConcat(t *testing.T) {
-	result := Concat(" + ", E("a"), E("b"), E("c"))
+	result := expr.Concat(" + ", expr.E("a"), expr.E("b"), expr.E("c"))
 	if result.String() != "a + b + c" {
 		t.Errorf("got %q", result.String())
 	}

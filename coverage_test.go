@@ -5,11 +5,14 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/usetheo/theo/forge/client"
+	"github.com/usetheo/theo/forge/expr"
 )
 
 // Cover ParamRef
 func TestParamRef(t *testing.T) {
-	got := ParamRef("inputs.parameters.msg")
+	got := expr.ParamRef("inputs.parameters.msg")
 	want := "{{inputs.parameters.msg}}"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
@@ -18,7 +21,7 @@ func TestParamRef(t *testing.T) {
 
 // Cover APIError.Error
 func TestAPIErrorString(t *testing.T) {
-	e := &APIError{StatusCode: 404, Message: "not found"}
+	e := &client.APIError{StatusCode: 404, Message: "not found"}
 	if !strings.Contains(e.Error(), "404") {
 		t.Errorf("error = %q", e.Error())
 	}
@@ -29,7 +32,7 @@ func TestAPIErrorString(t *testing.T) {
 
 // Cover GetVersion
 func TestServiceGetVersion(t *testing.T) {
-	svc := &WorkflowsService{
+	svc := &client.WorkflowsService{
 		Host: "https://argo.example.com",
 		HTTPClient: &mockHTTPClient{
 			DoFunc: func(req *http.Request) (*http.Response, error) {
@@ -101,14 +104,14 @@ func TestPVCVolumeBuildVolume(t *testing.T) {
 
 // Cover Expr.C with int64 and float64 branches
 func TestExprConstantInt64(t *testing.T) {
-	e := C(int64(42))
+	e := expr.C(int64(42))
 	if e.String() != "42" {
 		t.Errorf("got %q", e.String())
 	}
 }
 
 func TestExprConstantFloat64(t *testing.T) {
-	e := C(float64(3.14))
+	e := expr.C(float64(3.14))
 	if e.String() != "3.14" {
 		t.Errorf("got %q", e.String())
 	}

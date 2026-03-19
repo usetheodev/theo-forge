@@ -185,7 +185,7 @@ func (v PVCVolume) BuildPVC() (model.PVCModel, error) {
 		modes = []string{string(ReadWriteOnce)}
 	}
 	return model.PVCModel{
-		Name: v.Name,
+		Metadata: model.PVCMetadata{Name: v.Name},
 		Spec: model.PVCSpec{
 			AccessModes:      modes,
 			StorageClassName: v.StorageClassName,

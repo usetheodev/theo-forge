@@ -163,8 +163,8 @@ func TestScriptWithRetry(t *testing.T) {
 	if tpl.RetryStrategy == nil {
 		t.Fatal("expected retry strategy")
 	}
-	if *tpl.RetryStrategy.Limit != 5 {
-		t.Errorf("limit = %d", *tpl.RetryStrategy.Limit)
+	if tpl.RetryStrategy.Limit != "5" {
+		t.Errorf("limit = %v, want \"5\"", tpl.RetryStrategy.Limit)
 	}
 }
 

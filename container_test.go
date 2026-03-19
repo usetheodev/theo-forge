@@ -3,6 +3,8 @@ package forge
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/usetheo/theo/forge/model"
 )
 
 func TestContainerBuildTemplate(t *testing.T) {
@@ -123,8 +125,8 @@ func TestContainerWithRetryStrategy(t *testing.T) {
 	if tpl.RetryStrategy == nil {
 		t.Fatal("expected retry strategy")
 	}
-	if *tpl.RetryStrategy.Limit != 3 {
-		t.Errorf("retry limit = %d", *tpl.RetryStrategy.Limit)
+	if tpl.RetryStrategy.Limit != "3" {
+		t.Errorf("retry limit = %v, want \"3\"", tpl.RetryStrategy.Limit)
 	}
 }
 
@@ -145,7 +147,7 @@ func TestImagePullPolicyParsing(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			got, err := ParseImagePullPolicy(tt.input)
+			got, err := model.ParseImagePullPolicy(tt.input)
 			if tt.err && err == nil {
 				t.Fatal("expected error")
 			}
