@@ -126,12 +126,12 @@ func WorkflowToFile(yamlStr, outputDir, fileName, wfName, generateName string) (
 		return "", fmt.Errorf("resolve output directory: %w", err)
 	}
 
-	if err := os.MkdirAll(absDir, 0o755); err != nil {
+	if err := os.MkdirAll(absDir, 0o750); err != nil {
 		return "", fmt.Errorf("create output directory: %w", err)
 	}
 
 	path := filepath.Join(absDir, fileName)
-	if err := os.WriteFile(path, []byte(yamlStr), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(yamlStr), 0o600); err != nil {
 		return "", fmt.Errorf("write file: %w", err)
 	}
 
@@ -140,7 +140,8 @@ func WorkflowToFile(yamlStr, outputDir, fileName, wfName, generateName string) (
 
 // WorkflowFromFile reads a WorkflowModel from a YAML file.
 func WorkflowFromFile(path string) (model.WorkflowModel, error) {
-	data, err := os.ReadFile(path)
+	cleanPath := filepath.Clean(path)
+	data, err := os.ReadFile(cleanPath) // #nosec G304 — caller controls path
 	if err != nil {
 		return model.WorkflowModel{}, fmt.Errorf("read file: %w", err)
 	}

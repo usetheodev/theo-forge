@@ -76,7 +76,7 @@ jobs:
       - name: gosec
         uses: securego/gosec@master
         with:
-          args: ./...
+          args: -exclude-dir=testdata ./...
 
   codeql:
     name: CodeQL
