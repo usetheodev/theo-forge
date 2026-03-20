@@ -102,12 +102,12 @@ func (c *Container) BuildTemplate() (model.TemplateModel, error) {
 	}
 
 	var initContainers []model.ContainerModel
-	for _, ic := range c.InitContainers {
-		initContainers = append(initContainers, ic.Build())
+	for i := range c.InitContainers {
+		initContainers = append(initContainers, c.InitContainers[i].Build())
 	}
 	var sidecars []model.ContainerModel
-	for _, sc := range c.Sidecars {
-		sidecars = append(sidecars, sc.Build())
+	for i := range c.Sidecars {
+		sidecars = append(sidecars, c.Sidecars[i].Build())
 	}
 
 	return model.TemplateModel{
@@ -237,8 +237,8 @@ func (s *Script) BuildTemplate() (model.TemplateModel, error) {
 	}
 
 	var sidecars []model.ContainerModel
-	for _, sc := range s.Sidecars {
-		sidecars = append(sidecars, sc.Build())
+	for i := range s.Sidecars {
+		sidecars = append(sidecars, s.Sidecars[i].Build())
 	}
 
 	return model.TemplateModel{

@@ -70,7 +70,7 @@ func TestParallelNameConflict(t *testing.T) {
 	p := &Parallel{}
 	a := &Step{Name: "step-a", Template: "echo"}
 	b := &Step{Name: "step-a", Template: "echo"} // same name
-	p.AddStep(a)
+	_ = p.AddStep(a)
 	err := p.AddStep(b)
 	if err == nil {
 		t.Fatal("expected name conflict")
@@ -144,11 +144,11 @@ func TestStepsMixed(t *testing.T) {
 	d := &Step{Name: "cleanup", Template: "cleanup"}
 
 	// Sequential: setup
-	steps.AddSequentialStep(a)
+	_ = steps.AddSequentialStep(a)
 	// Parallel: build + test
-	steps.AddParallelGroup(b, c)
+	_ = steps.AddParallelGroup(b, c)
 	// Sequential: cleanup
-	steps.AddSequentialStep(d)
+	_ = steps.AddSequentialStep(d)
 
 	tpl, err := steps.BuildTemplate()
 	if err != nil {
@@ -173,7 +173,7 @@ func TestStepsNameConflictAcrossGroups(t *testing.T) {
 	a := &Step{Name: "step-a", Template: "echo"}
 	b := &Step{Name: "step-a", Template: "echo"} // same name, different group
 
-	steps.AddSequentialStep(a)
+	_ = steps.AddSequentialStep(a)
 	err := steps.AddSequentialStep(b)
 	if err == nil {
 		t.Fatal("expected name conflict across groups")

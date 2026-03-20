@@ -34,12 +34,12 @@ func buildSteps() *Workflow {
 		Templates: []Templatable{
 			func() Templatable {
 				s := &Steps{Name: "hello-hello-hello"}
-				s.AddSequentialStep(&Step{
+				_ = s.AddSequentialStep(&Step{
 					Name:     "hello1",
 					Template: "print-message",
 					Arguments: []Parameter{{Name: "message", Value: ptrStr("hello1")}},
 				})
-				s.AddParallelGroup(
+				_ = s.AddParallelGroup(
 					&Step{
 						Name:     "hello2a",
 						Template: "print-message",
@@ -70,7 +70,7 @@ func buildDagDiamond() *Workflow {
 	B := &Task{Name: "B", Template: "echo", Depends: "A", Arguments: []Parameter{{Name: "message", Value: ptrStr("B")}}}
 	C := &Task{Name: "C", Template: "echo", Depends: "A", Arguments: []Parameter{{Name: "message", Value: ptrStr("C")}}}
 	D := &Task{Name: "D", Template: "echo", Depends: "B && C", Arguments: []Parameter{{Name: "message", Value: ptrStr("D")}}}
-	dag.AddTasks(A, B, C, D)
+	_ = dag.AddTasks(A, B, C, D)
 
 	return &Workflow{
 		GenerateName: "dag-diamond-",
@@ -130,8 +130,8 @@ func buildCoinflip() *Workflow {
 			},
 			func() Templatable {
 				s := &Steps{Name: "coinflip"}
-				s.AddSequentialStep(&Step{Name: "flip-coin", Template: "flip-coin"})
-				s.AddParallelGroup(
+				_ = s.AddSequentialStep(&Step{Name: "flip-coin", Template: "flip-coin"})
+				_ = s.AddParallelGroup(
 					&Step{Name: "heads", Template: "heads", When: "{{steps.flip-coin.outputs.result}} == heads"},
 					&Step{Name: "tails", Template: "tails", When: "{{steps.flip-coin.outputs.result}} == tails"},
 				)
@@ -152,7 +152,7 @@ func buildConditionals() *Workflow {
 					Name:   "conditional-example",
 					Inputs: []Parameter{{Name: "should-print"}},
 				}
-				s.AddParallelGroup(
+				_ = s.AddParallelGroup(
 					&Step{Name: "print-hello-govaluate", Template: "argosay", When: "{{inputs.parameters.should-print}} == true"},
 					&Step{Name: "print-hello-expr", Template: "argosay", When: "{{= inputs.parameters[\"should-print\"] == 'true'}}"},
 					&Step{Name: "print-hello-expr-json", Template: "argosay", When: "{{=jsonpath(workflow.parameters.json, '$[0].value') == 'true'}}"},
@@ -189,8 +189,8 @@ func buildScriptsPython() *Workflow {
 			},
 			func() Templatable {
 				s := &Steps{Name: "python-script-example"}
-				s.AddSequentialStep(&Step{Name: "generate", Template: "gen-random-int"})
-				s.AddSequentialStep(&Step{
+				_ = s.AddSequentialStep(&Step{Name: "generate", Template: "gen-random-int"})
+				_ = s.AddSequentialStep(&Step{
 					Name:     "print",
 					Template: "print-message",
 					Arguments: []Parameter{{Name: "message", Value: ptrStr("{{steps.generate.outputs.result}}")}},
@@ -226,7 +226,7 @@ func buildLoops() *Workflow {
 		Templates: []Templatable{
 			func() Templatable {
 				s := &Steps{Name: "loop-example"}
-				s.AddSequentialStep(&Step{
+				_ = s.AddSequentialStep(&Step{
 					Name:     "print-message-loop",
 					Template: "print-message",
 					Arguments: []Parameter{{Name: "message", Value: ptrStr("{{item}}")}},
@@ -252,7 +252,7 @@ func buildLoopsMaps() *Workflow {
 		Templates: []Templatable{
 			func() Templatable {
 				s := &Steps{Name: "loop-map-example"}
-				s.AddSequentialStep(&Step{
+				_ = s.AddSequentialStep(&Step{
 					Name:     "test-linux",
 					Template: "cat-os-release",
 					Arguments: []Parameter{
@@ -303,8 +303,8 @@ func buildOutputParameter() *Workflow {
 			},
 			func() Templatable {
 				s := &Steps{Name: "output-parameter"}
-				s.AddSequentialStep(&Step{Name: "generate-parameter", Template: "hello-world-to-file"})
-				s.AddSequentialStep(&Step{
+				_ = s.AddSequentialStep(&Step{Name: "generate-parameter", Template: "hello-world-to-file"})
+				_ = s.AddSequentialStep(&Step{
 					Name:     "consume-parameter",
 					Template: "print-message",
 					Arguments: []Parameter{{Name: "message", Value: ptrStr("{{steps.generate-parameter.outputs.parameters.hello-param}}")}},
@@ -345,7 +345,7 @@ func buildExitHandlers() *Workflow {
 			},
 			func() Templatable {
 				s := &Steps{Name: "exit-handler"}
-				s.AddParallelGroup(
+				_ = s.AddParallelGroup(
 					&Step{Name: "notify", Template: "send-email"},
 					&Step{Name: "celebrate", Template: "celebrate", When: "{{workflow.status}} == Succeeded"},
 					&Step{Name: "cry", Template: "cry", When: "{{workflow.status}} != Succeeded"},
@@ -413,8 +413,8 @@ func buildArtifactPassing() *Workflow {
 			},
 			func() Templatable {
 				s := &Steps{Name: "artifact-example"}
-				s.AddSequentialStep(&Step{Name: "generate-artifact", Template: "hello-world-to-file"})
-				s.AddSequentialStep(&Step{
+				_ = s.AddSequentialStep(&Step{Name: "generate-artifact", Template: "hello-world-to-file"})
+				_ = s.AddSequentialStep(&Step{
 					Name:     "consume-artifact",
 					Template: "print-message-from-file",
 					ArgumentArtifacts: []ArtifactBuilder{
@@ -442,10 +442,10 @@ func buildSuspendTemplate() *Workflow {
 			&Suspend{Name: "delay", Duration: "20"},
 			func() Templatable {
 				s := &Steps{Name: "suspend"}
-				s.AddSequentialStep(&Step{Name: "build", Template: "hello-world"})
-				s.AddSequentialStep(&Step{Name: "approve", Template: "approve"})
-				s.AddSequentialStep(&Step{Name: "delay", Template: "delay"})
-				s.AddSequentialStep(&Step{Name: "release", Template: "hello-world"})
+				_ = s.AddSequentialStep(&Step{Name: "build", Template: "hello-world"})
+				_ = s.AddSequentialStep(&Step{Name: "approve", Template: "approve"})
+				_ = s.AddSequentialStep(&Step{Name: "delay", Template: "delay"})
+				_ = s.AddSequentialStep(&Step{Name: "release", Template: "hello-world"})
 				return s
 			}(),
 		},
@@ -487,7 +487,7 @@ func buildParallelismLimit() *Workflow {
 			},
 			func() Templatable {
 				s := &Steps{Name: "parallelism-limit"}
-				s.AddSequentialStep(&Step{
+				_ = s.AddSequentialStep(&Step{
 					Name:     "sleep",
 					Template: "sleep",
 					WithItems: []interface{}{"this", "workflow", "should", "take", "at", "least", 60, "seconds", "to", "complete"},
@@ -543,7 +543,7 @@ func buildRetryBackoff() *Workflow {
 
 func buildDagEnhancedDepends() *Workflow {
 	dag := &DAG{Name: "diamond"}
-	dag.AddTasks(
+	_ = dag.AddTasks(
 		&Task{Name: "A", Template: "pass"},
 		&Task{Name: "B", Template: "pass", Depends: "A"},
 		&Task{Name: "C", Template: "fail", Depends: "A"},
@@ -570,7 +570,7 @@ func buildDagMultiroot() *Workflow {
 	B := &Task{Name: "B", Template: "echo", Arguments: []Parameter{{Name: "message", Value: ptrStr("B")}}}
 	C := &Task{Name: "C", Template: "echo", Depends: "A", Arguments: []Parameter{{Name: "message", Value: ptrStr("C")}}}
 	D := &Task{Name: "D", Template: "echo", Depends: "A && B", Arguments: []Parameter{{Name: "message", Value: ptrStr("D")}}}
-	dag.AddTasks(A, B, C, D)
+	_ = dag.AddTasks(A, B, C, D)
 
 	return &Workflow{
 		GenerateName: "dag-multiroot-",
@@ -592,7 +592,7 @@ func buildDagTargets() *Workflow {
 		Name:   "dag-target",
 		Target: "{{workflow.parameters.target}}",
 	}
-	dag.AddTasks(
+	_ = dag.AddTasks(
 		&Task{Name: "A", Template: "echo", Arguments: []Parameter{{Name: "message", Value: ptrStr("A")}}},
 		&Task{Name: "B", Template: "echo", Depends: "A", Arguments: []Parameter{{Name: "message", Value: ptrStr("B")}}},
 		&Task{Name: "C", Template: "echo", Depends: "A", Arguments: []Parameter{{Name: "message", Value: ptrStr("C")}}},
@@ -628,7 +628,7 @@ func buildHttpHelloWorld() *Workflow {
 		Templates: []Templatable{
 			func() Templatable {
 				s := &Steps{Name: "main"}
-				s.AddParallelGroup(
+				_ = s.AddParallelGroup(
 					&Step{
 						Name: "good", Template: "http",
 						Arguments: []Parameter{{Name: "url", Value: ptrStr("https://raw.githubusercontent.com/argoproj/argo-workflows/4e450e250168e6b4d51a126b784e90b11a0162bc/pkg/apis/workflow/v1alpha1/generated.swagger.json")}},
@@ -715,12 +715,12 @@ func buildContinueOnFail() *Workflow {
 			},
 			func() Templatable {
 				s := &Steps{Name: "workflow-ignore"}
-				s.AddSequentialStep(&Step{Name: "A", Template: "hello-world"})
-				s.AddParallelGroup(
+				_ = s.AddSequentialStep(&Step{Name: "A", Template: "hello-world"})
+				_ = s.AddParallelGroup(
 					&Step{Name: "B", Template: "hello-world"},
 					&Step{Name: "C", Template: "intentional-fail", ContinueOn: &model.ContinueOn{Failed: true}},
 				)
-				s.AddSequentialStep(&Step{Name: "D", Template: "hello-world"})
+				_ = s.AddSequentialStep(&Step{Name: "D", Template: "hello-world"})
 				return s
 			}(),
 		},
@@ -755,7 +755,7 @@ func buildPodGcStrategy() *Workflow {
 		Templates: []Templatable{
 			func() Templatable {
 				s := &Steps{Name: "pod-gc-strategy"}
-				s.AddParallelGroup(
+				_ = s.AddParallelGroup(
 					&Step{Name: "fail", Template: "fail"},
 					&Step{Name: "succeed", Template: "succeed"},
 				)
@@ -840,6 +840,15 @@ func TestBuildScriptsPython(t *testing.T) {
 		t.Fatal(err)
 	}
 	goldenTest(t, "scripts-python.golden", yaml)
+}
+
+func TestBuildColoredLogs(t *testing.T) {
+	w := buildColoredLogs()
+	yaml, err := w.ToYAML()
+	if err != nil {
+		t.Fatal(err)
+	}
+	goldenTest(t, "colored-logs.golden", yaml)
 }
 
 func TestBuildLoops(t *testing.T) {
@@ -1053,7 +1062,7 @@ func TestExampleDiamondDAG(t *testing.T) {
 	A.Then(C)
 	B.Then(D)
 	C.Then(D)
-	dag.AddTasks(A, B, C, D)
+	_ = dag.AddTasks(A, B, C, D)
 
 	w := &Workflow{
 		GenerateName: "diamond-",
@@ -1115,8 +1124,8 @@ print(result)`,
 	}
 
 	steps := &Steps{Name: "coinflip"}
-	steps.AddSequentialStep(&Step{Name: "flip", Template: "flip-coin"})
-	steps.AddParallelGroup(
+	_ = steps.AddSequentialStep(&Step{Name: "flip", Template: "flip-coin"})
+	_ = steps.AddParallelGroup(
 		&Step{Name: "heads", Template: "heads", When: "{{steps.flip.outputs.result}} == heads"},
 		&Step{Name: "tails", Template: "tails", When: "{{steps.flip.outputs.result}} == tails"},
 	)
@@ -1167,7 +1176,7 @@ func TestExampleParameterPassing(t *testing.T) {
 		},
 	}
 	genTask.Then(consumeTask)
-	dag.AddTasks(genTask, consumeTask)
+	_ = dag.AddTasks(genTask, consumeTask)
 
 	w := &Workflow{
 		GenerateName: "param-passing-",
@@ -1296,7 +1305,7 @@ func TestExampleWorkflowTemplateRef(t *testing.T) {
 
 	// Then, use it in a workflow via templateRef
 	dag := &DAG{Name: "main"}
-	dag.AddTask(&Task{
+	_ = dag.AddTask(&Task{
 		Name: "call-echo",
 		TemplateRef: &TemplateRef{
 			Name:     "echo-template",
@@ -1396,7 +1405,7 @@ func TestExampleDefaultParameterOverwrite(t *testing.T) {
 	}
 	genTask.Then(consumeDefault)
 	genTask.Then(consumeArg)
-	dag.AddTasks(genTask, consumeDefault, consumeArg)
+	_ = dag.AddTasks(genTask, consumeDefault, consumeArg)
 
 	w := &Workflow{
 		GenerateName: "default-param-overwrite-",
@@ -1456,7 +1465,7 @@ func TestExampleOutputParameterPassing(t *testing.T) {
 		},
 	}
 	outTask.Then(inTask)
-	dag.AddTasks(outTask, inTask)
+	_ = dag.AddTasks(outTask, inTask)
 
 	w := &Workflow{
 		GenerateName: "script-output-param-passing-",
@@ -1501,7 +1510,7 @@ func TestExampleWithItemsLoop(t *testing.T) {
 		},
 		WithItems: []interface{}{"hello", "world", "foo"},
 	}
-	dag.AddTask(loopTask)
+	_ = dag.AddTask(loopTask)
 
 	w := &Workflow{
 		GenerateName: "loops-",
@@ -1550,7 +1559,7 @@ func TestExampleWithParamLoop(t *testing.T) {
 		WithParam: genTask.GetOutputResult(),
 	}
 	genTask.Then(processTask)
-	dag.AddTasks(genTask, processTask)
+	_ = dag.AddTasks(genTask, processTask)
 
 	w := &Workflow{
 		GenerateName: "param-loop-",
@@ -1612,9 +1621,9 @@ func TestExampleRetryWithBackoff(t *testing.T) {
 // TestExampleSuspendApprovalGate tests manual approval pattern
 func TestExampleSuspendApprovalGate(t *testing.T) {
 	steps := &Steps{Name: "approval-flow"}
-	steps.AddSequentialStep(&Step{Name: "deploy-staging", Template: "deploy"})
-	steps.AddSequentialStep(&Step{Name: "wait-approval", Template: "approve"})
-	steps.AddSequentialStep(&Step{Name: "deploy-prod", Template: "deploy"})
+	_ = steps.AddSequentialStep(&Step{Name: "deploy-staging", Template: "deploy"})
+	_ = steps.AddSequentialStep(&Step{Name: "wait-approval", Template: "approve"})
+	_ = steps.AddSequentialStep(&Step{Name: "deploy-prod", Template: "deploy"})
 
 	w := &Workflow{
 		Name:       "approval-gate",
@@ -1665,7 +1674,7 @@ func TestExampleMultiClusterTemplateRef(t *testing.T) {
 
 	// Use it via templateRef
 	dag := &DAG{Name: "pipeline"}
-	dag.AddTask(&Task{
+	_ = dag.AddTask(&Task{
 		Name: "build",
 		TemplateRef: &TemplateRef{
 			Name:     "shared-build",

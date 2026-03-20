@@ -148,7 +148,7 @@ func TestFromFileNotFound(t *testing.T) {
 func TestFromFileInvalidYAML(t *testing.T) {
 	tmpDir := t.TempDir()
 	path := filepath.Join(tmpDir, "invalid.yaml")
-	os.WriteFile(path, []byte("{{{{invalid yaml"), 0o644)
+	_ = os.WriteFile(path, []byte("{{{{invalid yaml"), 0o644)
 
 	_, err := FromFile(path)
 	if err == nil {
@@ -1035,7 +1035,7 @@ func TestDAGWithOutputParameters(t *testing.T) {
 func TestServiceLintWorkflowBuildError(t *testing.T) {
 	svc := &client.WorkflowsService{Host: "https://argo.example.com", Namespace: "default"}
 	w := &Workflow{Entrypoint: "main"} // no name
-	_, err := svc.LintWorkflow(nil, w)
+	_, err := svc.LintWorkflow(context.TODO(), w)
 	if err == nil {
 		t.Fatal("expected build error")
 	}
@@ -1045,7 +1045,7 @@ func TestServiceLintWorkflowBuildError(t *testing.T) {
 func TestServiceCreateWorkflowBuildError(t *testing.T) {
 	svc := &client.WorkflowsService{Host: "https://argo.example.com", Namespace: "default"}
 	w := &Workflow{Entrypoint: "main"} // no name
-	_, err := svc.CreateWorkflow(nil, w)
+	_, err := svc.CreateWorkflow(context.TODO(), w)
 	if err == nil {
 		t.Fatal("expected build error")
 	}
