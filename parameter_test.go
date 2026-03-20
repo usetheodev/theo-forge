@@ -196,7 +196,3 @@ func TestParameterModelJSON(t *testing.T) {
 		t.Errorf("json name = %v, want 'msg'", m["name"])
 	}
 }
-<<<<<<< HEAD
-=======
-
->>>>>>> c091b749b1cf2a810840f9aa1db0505b8a592dcc

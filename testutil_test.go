@@ -230,10 +230,14 @@ func readExpectedYAML(name string) (string, error) {
 }
 
 // assertYAMLEqual compares the built YAML with the expected Hera YAML.
+// Skips the test if the reference YAML file is not available (e.g., in CI without hera/).
 func assertYAMLEqual(t *testing.T, name string, gotYAML string) {
 	t.Helper()
 	wantYAML, err := readExpectedYAML(name)
 	if err != nil {
+		if os.IsNotExist(err) {
+			t.Skipf("reference YAML not available for %s (hera/ not present)", name)
+		}
 		t.Fatalf("read expected YAML for %s: %v", name, err)
 	}
 	equal, err := semanticEqual(gotYAML, wantYAML)

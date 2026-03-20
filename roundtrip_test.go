@@ -567,6 +567,9 @@ func TestRoundTripAllExamples(t *testing.T) {
 
 	entries, err := os.ReadDir(heraDir)
 	if err != nil {
+		if os.IsNotExist(err) {
+			t.Skip("hera/ directory not available — skipping round-trip examples")
+		}
 		t.Fatalf("read hera examples dir: %v", err)
 	}
 
