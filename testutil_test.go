@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
 
@@ -36,19 +35,6 @@ func containsStr(s, sub string) bool {
 }
 
 // --- YAML comparison helpers ---
-
-// yamlToMap parses YAML string into a generic map for comparison.
-func yamlToMap(yamlStr string) (map[string]interface{}, error) {
-	jsonBytes, err := yamlconv.YAMLToJSON([]byte(yamlStr))
-	if err != nil {
-		return nil, err
-	}
-	var m map[string]interface{}
-	if err := json.Unmarshal(jsonBytes, &m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
 
 // normalizeForComparison recursively normalizes a value for comparison.
 // Arrays of objects with a "name" field are sorted by name to make comparison order-independent.
@@ -201,47 +187,6 @@ func assertSemantic(t *testing.T, name, got, want string) {
 		if len(diffs) > 0 {
 			t.Errorf("round-trip mismatch for %s:\n%s", name, strings.Join(diffs, "\n"))
 		}
-	}
-}
-
-// semanticEqual compares two YAML strings semantically (ignoring field order and template ordering).
-func semanticEqual(got, want string) (bool, error) {
-	gotMap, err := yamlToMap(got)
-	if err != nil {
-		return false, fmt.Errorf("parsing got: %w", err)
-	}
-	wantMap, err := yamlToMap(want)
-	if err != nil {
-		return false, fmt.Errorf("parsing want: %w", err)
-	}
-	gotNorm := normalizeForComparison(gotMap)
-	wantNorm := normalizeForComparison(wantMap)
-	return reflect.DeepEqual(gotNorm, wantNorm), nil
-}
-
-// readExpectedYAML reads the Hera-generated YAML for comparison.
-func readExpectedYAML(name string) (string, error) {
-	path := fmt.Sprintf("hera/examples/workflows/upstream/%s.yaml", name)
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return "", err
-	}
-	return string(data), nil
-}
-
-// assertYAMLEqual compares the built YAML with the expected Hera YAML.
-func assertYAMLEqual(t *testing.T, name string, gotYAML string) {
-	t.Helper()
-	wantYAML, err := readExpectedYAML(name)
-	if err != nil {
-		t.Fatalf("read expected YAML for %s: %v", name, err)
-	}
-	equal, err := semanticEqual(gotYAML, wantYAML)
-	if err != nil {
-		t.Fatalf("compare YAML for %s: %v", name, err)
-	}
-	if !equal {
-		t.Errorf("YAML mismatch for %s\n\nGot:\n%s\n\nWant:\n%s", name, gotYAML, wantYAML)
 	}
 }
 

@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: gc-ttl-
+spec:
+  entrypoint: hello-world
+  templates:
+  - container:
+      args:
+      - hello world
+      command:
+      - echo
+      image: busybox
+    name: hello-world
+  ttlStrategy:
+    secondsAfterCompletion: 10
+    secondsAfterFailure: 5
+    secondsAfterSuccess: 5

@@ -1,0 +1,28 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: loops-
+spec:
+  entrypoint: loop-example
+  templates:
+  - name: loop-example
+    steps:
+    - - arguments:
+          parameters:
+          - name: message
+            value: '{{item}}'
+        name: print-message-loop
+        template: print-message
+        withItems:
+        - hello world
+        - goodbye world
+  - container:
+      args:
+      - '{{inputs.parameters.message}}'
+      command:
+      - echo
+      image: busybox
+    inputs:
+      parameters:
+      - name: message
+    name: print-message
