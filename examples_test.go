@@ -785,7 +785,7 @@ func TestBuildHelloWorld(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertYAMLEqual(t, "hello-world", yaml)
+	goldenTest(t, "hello-world.golden", yaml)
 }
 
 func TestBuildSteps(t *testing.T) {
@@ -794,7 +794,7 @@ func TestBuildSteps(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertYAMLEqual(t, "steps", yaml)
+	goldenTest(t, "steps.golden", yaml)
 }
 
 func TestBuildDagDiamond(t *testing.T) {
@@ -803,7 +803,7 @@ func TestBuildDagDiamond(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertYAMLEqual(t, "dag-diamond", yaml)
+	goldenTest(t, "dag-diamond.golden", yaml)
 }
 
 func TestBuildArgumentsParameters(t *testing.T) {
@@ -812,7 +812,7 @@ func TestBuildArgumentsParameters(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertYAMLEqual(t, "arguments-parameters", yaml)
+	goldenTest(t, "arguments-parameters.golden", yaml)
 }
 
 func TestBuildCoinflip(t *testing.T) {
@@ -821,7 +821,7 @@ func TestBuildCoinflip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertYAMLEqual(t, "coinflip", yaml)
+	goldenTest(t, "coinflip.golden", yaml)
 }
 
 func TestBuildConditionals(t *testing.T) {
@@ -830,7 +830,7 @@ func TestBuildConditionals(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertYAMLEqual(t, "conditionals", yaml)
+	goldenTest(t, "conditionals.golden", yaml)
 }
 
 func TestBuildScriptsPython(t *testing.T) {
@@ -839,7 +839,7 @@ func TestBuildScriptsPython(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertYAMLEqual(t, "scripts-python", yaml)
+	goldenTest(t, "scripts-python.golden", yaml)
 }
 
 func TestBuildLoops(t *testing.T) {
@@ -848,7 +848,7 @@ func TestBuildLoops(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertYAMLEqual(t, "loops", yaml)
+	goldenTest(t, "loops.golden", yaml)
 }
 
 func TestBuildLoopsMaps(t *testing.T) {
@@ -857,7 +857,7 @@ func TestBuildLoopsMaps(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertYAMLEqual(t, "loops-maps", yaml)
+	goldenTest(t, "loops-maps.golden", yaml)
 }
 
 func TestBuildOutputParameter(t *testing.T) {
@@ -866,7 +866,7 @@ func TestBuildOutputParameter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertYAMLEqual(t, "output-parameter", yaml)
+	goldenTest(t, "output-parameter.golden", yaml)
 }
 
 func TestBuildGlobalParameters(t *testing.T) {
@@ -875,7 +875,7 @@ func TestBuildGlobalParameters(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertYAMLEqual(t, "global-parameters", yaml)
+	goldenTest(t, "global-parameters.golden", yaml)
 }
 
 func TestBuildExitHandlers(t *testing.T) {
@@ -884,7 +884,7 @@ func TestBuildExitHandlers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertYAMLEqual(t, "exit-handlers", yaml)
+	goldenTest(t, "exit-handlers.golden", yaml)
 }
 
 func TestBuildForever(t *testing.T) {
@@ -893,7 +893,7 @@ func TestBuildForever(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertYAMLEqual(t, "forever", yaml)
+	goldenTest(t, "forever.golden", yaml)
 }
 
 func TestBuildArtifactPassing(t *testing.T) {
@@ -902,7 +902,7 @@ func TestBuildArtifactPassing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertYAMLEqual(t, "artifact-passing", yaml)
+	goldenTest(t, "artifact-passing.golden", yaml)
 }
 
 func TestBuildSuspendTemplate(t *testing.T) {
@@ -911,7 +911,7 @@ func TestBuildSuspendTemplate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertYAMLEqual(t, "suspend-template", yaml)
+	goldenTest(t, "suspend-template.golden", yaml)
 }
 
 func TestBuildCronWorkflowExample(t *testing.T) {
@@ -920,7 +920,7 @@ func TestBuildCronWorkflowExample(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertYAMLEqual(t, "cron-workflow", yaml)
+	goldenTest(t, "cron-workflow.golden", yaml)
 }
 
 func TestBuildParallelismLimit(t *testing.T) {
@@ -929,7 +929,7 @@ func TestBuildParallelismLimit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertYAMLEqual(t, "parallelism-limit", yaml)
+	goldenTest(t, "parallelism-limit.golden", yaml)
 }
 
 func TestBuildNodeSelector(t *testing.T) {
@@ -938,7 +938,7 @@ func TestBuildNodeSelector(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertYAMLEqual(t, "node-selector", yaml)
+	goldenTest(t, "node-selector.golden", yaml)
 }
 
 func TestBuildRetryBackoff(t *testing.T) {
@@ -947,7 +947,7 @@ func TestBuildRetryBackoff(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertYAMLEqual(t, "retry-backoff", yaml)
+	goldenTest(t, "retry-backoff.golden", yaml)
 }
 
 func TestBuildDagEnhancedDepends(t *testing.T) {
@@ -956,7 +956,7 @@ func TestBuildDagEnhancedDepends(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertYAMLEqual(t, "dag-enhanced-depends", yaml)
+	goldenTest(t, "dag-enhanced-depends.golden", yaml)
 }
 
 func TestBuildDagMultiroot(t *testing.T) {
@@ -965,7 +965,7 @@ func TestBuildDagMultiroot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertYAMLEqual(t, "dag-multiroot", yaml)
+	goldenTest(t, "dag-multiroot.golden", yaml)
 }
 
 func TestBuildDagTargets(t *testing.T) {
@@ -974,7 +974,7 @@ func TestBuildDagTargets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertYAMLEqual(t, "dag-targets", yaml)
+	goldenTest(t, "dag-targets.golden", yaml)
 }
 
 func TestBuildHttpHelloWorld(t *testing.T) {
@@ -983,7 +983,7 @@ func TestBuildHttpHelloWorld(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertYAMLEqual(t, "http-hello-world", yaml)
+	goldenTest(t, "http-hello-world.golden", yaml)
 }
 
 func TestBuildVolumesEmptyDir(t *testing.T) {
@@ -992,7 +992,7 @@ func TestBuildVolumesEmptyDir(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertYAMLEqual(t, "volumes-emptydir", yaml)
+	goldenTest(t, "volumes-emptydir.golden", yaml)
 }
 
 func TestBuildSecrets(t *testing.T) {
@@ -1001,7 +1001,7 @@ func TestBuildSecrets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertYAMLEqual(t, "secrets", yaml)
+	goldenTest(t, "secrets.golden", yaml)
 }
 
 func TestBuildContinueOnFail(t *testing.T) {
@@ -1010,7 +1010,7 @@ func TestBuildContinueOnFail(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertYAMLEqual(t, "continue-on-fail", yaml)
+	goldenTest(t, "continue-on-fail.golden", yaml)
 }
 
 func TestBuildGcTtl(t *testing.T) {
@@ -1019,7 +1019,7 @@ func TestBuildGcTtl(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertYAMLEqual(t, "gc-ttl", yaml)
+	goldenTest(t, "gc-ttl.golden", yaml)
 }
 
 func TestBuildPodGcStrategy(t *testing.T) {
@@ -1028,7 +1028,7 @@ func TestBuildPodGcStrategy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertYAMLEqual(t, "pod-gc-strategy", yaml)
+	goldenTest(t, "pod-gc-strategy.golden", yaml)
 }
 
 // --- Example tests (consolidated from example_test.go) ---

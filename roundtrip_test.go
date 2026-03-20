@@ -557,63 +557,7 @@ func TestGoldenCronWorkflow(t *testing.T) {
 	goldenTest(t, "cron_workflow", yamlOut)
 }
 
-// --- Round-trip example tests (consolidated from roundtrip_examples_test.go) ---
-
-// TestRoundTripAllExamples verifies that every Hera-generated YAML example can be
-// parsed into a model and re-serialized without data loss.
-// This proves the forge model types can represent ALL Argo Workflow examples programmatically.
-func TestRoundTripAllExamples(t *testing.T) {
-	heraDir := "hera/examples/workflows/upstream"
-
-	entries, err := os.ReadDir(heraDir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			t.Skip("hera/ directory not available — skipping round-trip examples")
-		}
-		t.Fatalf("read hera examples dir: %v", err)
-	}
-
-	var tested int
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".yaml") {
-			continue
-		}
-		// Skip upstream YAML files (they're the original Argo examples, not Hera-generated)
-		if strings.HasSuffix(entry.Name(), ".upstream.yaml") {
-			continue
-		}
-
-		name := strings.TrimSuffix(entry.Name(), ".yaml")
-		t.Run(name, func(t *testing.T) {
-			path := filepath.Join(heraDir, entry.Name())
-			data, err := os.ReadFile(path)
-			if err != nil {
-				t.Fatalf("read %s: %v", path, err)
-			}
-			yamlStr := string(data)
-
-			// Determine kind
-			kind := detectKind(yamlStr)
-
-			switch kind {
-			case "Workflow":
-				roundTripWorkflow(t, name, yamlStr)
-			case "WorkflowTemplate", "ClusterWorkflowTemplate":
-				roundTripWorkflowTemplate(t, name, yamlStr)
-			case "CronWorkflow":
-				roundTripCronWorkflow(t, name, yamlStr)
-			default:
-				t.Skipf("unknown kind %q in %s", kind, name)
-			}
-		})
-		tested++
-	}
-
-	if tested == 0 {
-		t.Fatal("no examples found")
-	}
-	t.Logf("Round-trip tested %d examples", tested)
-}
+// --- Round-trip example tests (using testdata/examples/) ---
 
 func TestRoundTripTestdataExamples(t *testing.T) {
 	examplesDir := "testdata/examples"

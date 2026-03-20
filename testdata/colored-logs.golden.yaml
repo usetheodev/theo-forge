@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  annotations:
+    workflows.argoproj.io/description: |
+      This example demonstrates colored logs of the logs viewer on Argo UI.
+  generateName: colored-logs-
+spec:
+  entrypoint: colored-logs-example
+  templates:
+  - container:
+      args:
+      - from datetime import datetime; print(datetime.utcnow().isoformat())
+      command:
+      - python
+      - -c
+      image: python:3.7
+    name: colored-logs-example

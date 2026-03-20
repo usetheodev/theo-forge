@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: hello-world
+spec:
+  concurrencyPolicy: Replace
+  failedJobsHistoryLimit: 4
+  schedules:
+  - '* * * * *'
+  startingDeadlineSeconds: 0
+  successfulJobsHistoryLimit: 4
+  suspend: false
+  timezone: America/Los_Angeles
+  workflowSpec:
+    entrypoint: hello-world-with-time
+    templates:
+    - container:
+        args:
+        - "\U0001F553 hello world. Scheduled on: {{workflow.scheduledTime}}"
+        command:
+        - echo
+        image: busybox
+      name: hello-world-with-time

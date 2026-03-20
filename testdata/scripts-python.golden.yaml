@@ -1,0 +1,38 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: scripts-python-
+spec:
+  entrypoint: python-script-example
+  templates:
+  - name: gen-random-int
+    script:
+      command:
+      - python
+      image: python:alpine3.6
+      source: |2-
+
+        import random
+        i = random.randint(1, 100)
+        print(i)
+  - container:
+      args:
+      - 'echo result was: {{inputs.parameters.message}}'
+      command:
+      - sh
+      - -c
+      image: alpine:latest
+    inputs:
+      parameters:
+      - name: message
+    name: print-message
+  - name: python-script-example
+    steps:
+    - - name: generate
+        template: gen-random-int
+    - - arguments:
+          parameters:
+          - name: message
+            value: '{{steps.generate.outputs.result}}'
+        name: print
+        template: print-message
