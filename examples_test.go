@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/usetheo/theo/forge/expr"
-	"github.com/usetheo/theo/forge/model"
+	"github.com/usetheodev/theo-forge/expr"
+	"github.com/usetheodev/theo-forge/model"
 )
 
 // === BUILDERS ===

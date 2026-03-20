@@ -3,7 +3,7 @@ package forge
 import (
 	"fmt"
 
-	"github.com/usetheo/theo/forge/model"
+	"github.com/usetheodev/theo-forge/model"
 )
 
 // Artifact is the base artifact type.

@@ -1,4 +1,4 @@
-module github.com/usetheo/theo/forge
+module github.com/usetheodev/theo-forge
 
 go 1.25.0
 

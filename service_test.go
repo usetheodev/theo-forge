@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/usetheo/theo/forge/client"
-	"github.com/usetheo/theo/forge/model"
+	"github.com/usetheodev/theo-forge/client"
+	"github.com/usetheodev/theo-forge/model"
 )
 
 // mockHTTPClient is a mock HTTP client for testing.

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/usetheo/theo/forge/model"
+	"github.com/usetheodev/theo-forge/model"
 )
 
 // HTTPClient is an interface for HTTP requests (allows mocking).

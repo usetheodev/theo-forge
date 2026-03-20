@@ -3,8 +3,8 @@ package forge
 import (
 	"fmt"
 
-	"github.com/usetheo/theo/forge/model"
-	"github.com/usetheo/theo/forge/serialize"
+	"github.com/usetheodev/theo-forge/model"
+	"github.com/usetheodev/theo-forge/serialize"
 )
 
 // WorkflowTemplate represents a namespace-scoped reusable workflow template.

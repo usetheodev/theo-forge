@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/usetheo/theo/forge/client"
-	"github.com/usetheo/theo/forge/expr"
+	"github.com/usetheodev/theo-forge/client"
+	"github.com/usetheodev/theo-forge/expr"
 )
 
 // --- File I/O tests (consolidated from file_io_test.go) ---

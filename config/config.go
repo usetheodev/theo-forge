@@ -5,7 +5,7 @@ package config
 import (
 	"sync"
 
-	"github.com/usetheo/theo/forge/model"
+	"github.com/usetheodev/theo-forge/model"
 )
 
 // PreBuildHook is a function that transforms a TemplateModel before submission.
