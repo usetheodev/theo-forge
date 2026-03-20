@@ -3,10 +3,10 @@ package forge
 import (
 	"fmt"
 
-	"github.com/usetheo/theo/forge/config"
-	"github.com/usetheo/theo/forge/model"
-	"github.com/usetheo/theo/forge/serialize"
-	"github.com/usetheo/theo/forge/validate"
+	"github.com/usetheodev/theo-forge/config"
+	"github.com/usetheodev/theo-forge/model"
+	"github.com/usetheodev/theo-forge/serialize"
+	"github.com/usetheodev/theo-forge/validate"
 )
 
 // --- Build helpers ---

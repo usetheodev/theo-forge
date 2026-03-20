@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/usetheo/theo/forge/model"
+	"github.com/usetheodev/theo-forge/model"
 )
 
 func TestWorkflowNameValidation(t *testing.T) {

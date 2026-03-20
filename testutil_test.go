@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/usetheo/theo/forge/serialize"
+	"github.com/usetheodev/theo-forge/serialize"
 	yamlconv "sigs.k8s.io/yaml"
 )
 

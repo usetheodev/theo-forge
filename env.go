@@ -1,6 +1,6 @@
 package forge
 
-import "github.com/usetheo/theo/forge/model"
+import "github.com/usetheodev/theo-forge/model"
 
 // EnvBuilder is the interface for types that build EnvVarModel.
 type EnvBuilder interface {

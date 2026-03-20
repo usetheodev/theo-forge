@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/usetheo/theo/forge/model"
+	"github.com/usetheodev/theo-forge/model"
 )
 
 func TestTaskThen(t *testing.T) {

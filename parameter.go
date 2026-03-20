@@ -3,7 +3,7 @@ package forge
 import (
 	"fmt"
 
-	"github.com/usetheo/theo/forge/model"
+	"github.com/usetheodev/theo-forge/model"
 )
 
 // Parameter represents a workflow parameter with name, value, default, and enum.

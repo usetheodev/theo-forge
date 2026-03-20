@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"strconv"
 
-	"github.com/usetheo/theo/forge/model"
+	"github.com/usetheodev/theo-forge/model"
 )
 
 var (
