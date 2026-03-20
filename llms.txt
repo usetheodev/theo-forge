@@ -1,0 +1,803 @@
+# theo-forge — Go SDK for Argo Workflows
+
+> This file is context for LLMs. Read it entirely before writing any code.
+> theo-forge lets you build Argo Workflow CRs programmatically in Go — type-safe, no YAML.
+
+## Install
+
+```bash
+go get github.com/usetheodev/theo-forge@latest
+```
+
+```go
+import forge "github.com/usetheodev/theo-forge"
+```
+
+Sub-packages (import only when needed):
+- `github.com/usetheodev/theo-forge/expr` — expression builder
+- `github.com/usetheodev/theo-forge/model` — serializable model types
+- `github.com/usetheodev/theo-forge/client` — Argo REST client
+
+---
+
+## Core Concept
+
+Every Argo Workflow object has a forge equivalent:
+
+| Argo YAML | forge type | Implements |
+|---|---|---|
+| Workflow | `forge.Workflow` | — |
+| DAG template | `forge.DAG` | `Templatable` |
+| Steps template | `forge.Steps` | `Templatable` |
+| Container template | `forge.Container` | `Templatable` |
+| Script template | `forge.Script` | `Templatable` |
+| Resource template | `forge.ResourceTemplate` | `Templatable` |
+| HTTP template | `forge.HTTPTemplate` | `Templatable` |
+| Suspend template | `forge.Suspend` | `Templatable` |
+| ContainerSet template | `forge.ContainerSet` | `Templatable` |
+| WorkflowTemplate | `forge.WorkflowTemplate` | — |
+| ClusterWorkflowTemplate | `forge.ClusterWorkflowTemplate` | — |
+| CronWorkflow | `forge.CronWorkflow` | — |
+
+The pattern is always: **create struct → call `ToYAML()` or `Build()`**.
+
+---
+
+## Quick Start
+
+### Minimal Workflow
+
+```go
+w := &forge.Workflow{
+    GenerateName: "hello-",
+    Entrypoint:   "main",
+    Templates: []forge.Templatable{
+        &forge.Container{
+            Name:    "main",
+            Image:   "alpine:3.18",
+            Command: []string{"echo"},
+            Args:    []string{"hello world"},
+        },
+    },
+}
+yaml, err := w.ToYAML()
+```
+
+### DAG with Dependencies
+
+```go
+dag := &forge.DAG{Name: "pipeline"}
+A := &forge.Task{Name: "A", Template: "echo", Arguments: []forge.Parameter{{Name: "msg", Value: ptr("Task A")}}}
+B := &forge.Task{Name: "B", Template: "echo", Arguments: []forge.Parameter{{Name: "msg", Value: ptr("Task B")}}}
+C := &forge.Task{Name: "C", Template: "echo", Arguments: []forge.Parameter{{Name: "msg", Value: ptr("Task C")}}}
+A.Then(B)
+A.Then(C)
+dag.AddTasks(A, B, C)
+
+w := &forge.Workflow{
+    GenerateName: "dag-",
+    Entrypoint:   "pipeline",
+    Templates: []forge.Templatable{
+        &forge.Container{
+            Name:    "echo",
+            Image:   "alpine:3.18",
+            Command: []string{"echo"},
+            Args:    []string{expr.InputParam("msg")},
+            Inputs:  []forge.Parameter{{Name: "msg"}},
+        },
+        dag,
+    },
+}
+
+func ptr(s string) *string { return &s }
+```
+
+### Steps (Sequential + Parallel)
+
+```go
+steps := &forge.Steps{Name: "ci-pipeline"}
+steps.AddSequentialStep(&forge.Step{Name: "build", Template: "build-tpl"})
+steps.AddSequentialStep(&forge.Step{Name: "test", Template: "test-tpl"})
+steps.AddParallelGroup(
+    &forge.Step{Name: "deploy-us", Template: "deploy-tpl"},
+    &forge.Step{Name: "deploy-eu", Template: "deploy-tpl"},
+)
+```
+
+### Script Template
+
+```go
+&forge.Script{
+    Name:    "compute",
+    Image:   "python:3.11",
+    Command: []string{"python"},
+    Source:  `import json; print(json.dumps({"result": 42}))`,
+    Outputs: []forge.Parameter{
+        {Name: "result", ValueFrom: &forge.ValueFrom{Path: "/tmp/result"}},
+    },
+}
+```
+
+---
+
+## Parameter Passing
+
+### Output refs (type-safe)
+
+```go
+genTask := &forge.Task{Name: "gen", Template: "generate"}
+useTask := &forge.Task{
+    Name:     "use",
+    Template: "consume",
+    Arguments: []forge.Parameter{
+        {Name: "data", Value: ptr(genTask.GetOutputParameter("result"))},
+    },
+}
+genTask.Then(useTask)
+```
+
+Available on Task: `GetOutputParameter(name)`, `GetOutputResult()`, `GetOutputArtifact(name)`
+Available on Step: `GetOutputParameter(name)`, `GetOutputResult()`, `GetOutputArtifact(name)`
+
+### Expression helpers (package `expr`)
+
+```go
+import "github.com/usetheodev/theo-forge/expr"
+
+expr.InputParam("msg")                    // "{{inputs.parameters.msg}}"
+expr.TaskOutputParam("gen", "result")     // "{{tasks.gen.outputs.parameters.result}}"
+expr.StepOutputParam("gen", "result")     // "{{steps.gen.outputs.parameters.result}}"
+expr.TaskOutputResult("gen")              // "{{tasks.gen.outputs.result}}"
+expr.WorkflowParam("env")                // "{{workflow.parameters.env}}"
+expr.ParamRef("inputs.parameters.msg")   // "{{inputs.parameters.msg}}"
+```
+
+### Expression builder (Argo expression syntax `{{= }}`)
+
+```go
+e := expr.Tasks("gen").Attr("outputs").Attr("result")
+e.Eq()  // "{{=tasks.gen.outputs.result}}"
+
+expr.C(42).GT(expr.C(0)).Check(expr.C("positive"), expr.C("zero"))
+// "42 > 0 ? 'positive' : 'zero'"
+```
+
+---
+
+## Environment Variables
+
+```go
+// Plain value
+forge.Env{Name: "FOO", Value: "bar"}
+
+// From Secret
+forge.SecretEnv{Name: "DB_PASS", SecretName: "db-creds", SecretKey: "password"}
+
+// From ConfigMap
+forge.ConfigMapEnv{Name: "LOG_LEVEL", ConfigMapName: "config", ConfigMapKey: "log-level"}
+
+// From field ref (downward API)
+forge.FieldEnv{Name: "POD_NAME", FieldPath: "metadata.name"}
+
+// From resource ref
+forge.ResourceEnv{Name: "CPU_LIMIT", Resource: "limits.cpu"}
+```
+
+---
+
+## Volumes
+
+```go
+// EmptyDir
+&forge.EmptyDirVolume{BaseVolume: forge.BaseVolume{Name: "tmp", MountPath: "/tmp"}}
+
+// Secret
+&forge.SecretVolume{BaseVolume: forge.BaseVolume{Name: "creds", MountPath: "/etc/creds"}, SecretName: "app-creds"}
+
+// ConfigMap
+&forge.ConfigMapVolume{BaseVolume: forge.BaseVolume{Name: "config", MountPath: "/etc/config"}}
+
+// PVC (dynamic provisioning)
+&forge.PVCVolume{BaseVolume: forge.BaseVolume{Name: "data", MountPath: "/data"}, Size: "10Gi", StorageClassName: "standard"}
+
+// Existing PVC
+&forge.ExistingVolume{BaseVolume: forge.BaseVolume{Name: "data", MountPath: "/data"}, ClaimName: "my-pvc"}
+
+// HostPath
+&forge.HostPathVolume{BaseVolume: forge.BaseVolume{Name: "docker", MountPath: "/var/run/docker.sock"}, Path: "/var/run/docker.sock"}
+
+// NFS
+&forge.NFSVolume{BaseVolume: forge.BaseVolume{Name: "shared", MountPath: "/shared"}, Server: "nfs.local", Path: "/exports/data"}
+```
+
+Volumes go in `Workflow.Volumes` (definition) and `Container.VolumeMounts` (mount).
+
+---
+
+## Artifacts
+
+```go
+// S3
+&forge.S3Artifact{Artifact: forge.Artifact{Name: "data", Path: "/tmp/data"}, Bucket: "my-bucket", Key: "output.tar.gz"}
+
+// GCS
+&forge.GCSArtifact{Artifact: forge.Artifact{Name: "data", Path: "/tmp/data"}, Bucket: "my-bucket", Key: "output.tar.gz"}
+
+// HTTP
+&forge.HTTPArtifact{Artifact: forge.Artifact{Name: "file", Path: "/tmp/file"}, URL: "https://example.com/file.tar.gz"}
+
+// Git
+&forge.GitArtifact{Artifact: forge.Artifact{Name: "repo", Path: "/src"}, Repo: "https://github.com/org/repo.git", Revision: "main"}
+
+// Raw (inline data)
+&forge.RawArtifact{Artifact: forge.Artifact{Name: "config", Path: "/etc/config.yaml"}, Data: "key: value"}
+
+// Passing artifacts between steps
+&forge.Artifact{Name: "output", From: "{{steps.generate.outputs.artifacts.result}}"}
+```
+
+Use `InputArtifacts` / `OutputArtifacts` on Container, Script, DAG, Steps.
+Use `ArgumentArtifacts` on Task / Step for passing between DAG tasks or step groups.
+
+---
+
+## Retry Strategy
+
+```go
+limit := 3
+factor := 2
+&forge.RetryStrategy{
+    Limit:       &limit,
+    RetryPolicy: forge.RetryOnFailure,
+    Backoff: &forge.Backoff{
+        Duration:    "5s",
+        Factor:      &factor,
+        MaxDuration: "1m",
+    },
+}
+```
+
+Set on Container, Script, or Workflow level via `RetryStrategy` field.
+
+---
+
+## Resources
+
+```go
+Resources: &forge.ResourceRequirements{
+    Requests: forge.ResourceList{CPU: "100m", Memory: "128Mi"},
+    Limits:   forge.ResourceList{CPU: "500m", Memory: "512Mi"},
+},
+```
+
+---
+
+## Template References (ClusterWorkflowTemplate / WorkflowTemplate)
+
+```go
+// Define a reusable template
+wt := &forge.WorkflowTemplate{
+    Name:       "shared-build",
+    Namespace:  "default",
+    Entrypoint: "build",
+    Templates: []forge.Templatable{
+        &forge.Container{Name: "build", Image: "golang:1.22", Command: []string{"go", "build", "./..."}},
+    },
+}
+wtYAML, _ := wt.ToYAML()
+
+// Reference it from a workflow
+dag := &forge.DAG{Name: "main"}
+dag.AddTask(&forge.Task{
+    Name: "build",
+    TemplateRef: &forge.TemplateRef{
+        Name:     "shared-build",
+        Template: "build",
+    },
+    Arguments: []forge.Parameter{{Name: "repo", Value: ptr("https://github.com/org/app.git")}},
+})
+```
+
+For cluster-scope: use `ClusterWorkflowTemplate` and set `ClusterScope: true` in TemplateRef (via the model).
+
+---
+
+## CronWorkflow (Scheduled)
+
+```go
+cw := &forge.CronWorkflow{
+    Name:              "nightly-build",
+    Schedule:          "0 2 * * *",
+    Timezone:          "America/Sao_Paulo",
+    ConcurrencyPolicy: "Replace",
+    Entrypoint:        "build",
+    Templates: []forge.Templatable{
+        &forge.Container{Name: "build", Image: "golang:1.22", Command: []string{"make", "build"}},
+    },
+}
+yaml, _ := cw.ToYAML()
+```
+
+---
+
+## Workflow Features
+
+```go
+w := &forge.Workflow{
+    Name:               "full-featured",
+    Entrypoint:         "main",
+    ServiceAccountName: "build-sa",
+    OnExit:             "cleanup",                    // exit handler template
+    Parallelism:        ptr(4),                       // max concurrent pods
+    NodeSelector:       map[string]string{"pool": "build"},
+    TTLStrategy:        &forge.TTLStrategy{SecondsAfterCompletion: ptr(3600)},
+    PodGC:              &forge.PodGC{Strategy: "OnPodSuccess"},
+    ImagePullSecrets:   []string{"registry-creds"},
+    Labels:             map[string]string{"app": "ci"},
+    Annotations:        map[string]string{"note": "generated"},
+    Volumes: []forge.VolumeBuilder{
+        &forge.EmptyDirVolume{BaseVolume: forge.BaseVolume{Name: "workspace", MountPath: "/workspace"}},
+    },
+    VolumeClaimTemplates: []forge.PVCVolume{
+        {BaseVolume: forge.BaseVolume{Name: "data", MountPath: "/data"}, Size: "5Gi"},
+    },
+    Templates: []forge.Templatable{...},
+}
+```
+
+---
+
+## Sidecars and Init Containers
+
+```go
+&forge.Container{
+    Name:  "main",
+    Image: "alpine",
+    InitContainers: []forge.UserContainer{
+        {Name: "init-db", Image: "postgres:16", Command: []string{"pg_isready"}},
+    },
+    Sidecars: []forge.UserContainer{
+        {Name: "log-collector", Image: "fluentd:latest", Env: []forge.EnvBuilder{
+            forge.Env{Name: "LOG_LEVEL", Value: "debug"},
+        }},
+    },
+}
+```
+
+---
+
+## Loops (WithItems / WithParam)
+
+```go
+// Static items
+&forge.Task{
+    Name:     "echo-loop",
+    Template: "echo",
+    Arguments: []forge.Parameter{{Name: "msg", Value: ptr("{{item}}")}},
+    WithItems: []interface{}{"hello", "world", "foo"},
+}
+
+// Dynamic fan-out from previous task output
+&forge.Task{
+    Name:      "process",
+    Template:  "process",
+    Arguments: []forge.Parameter{{Name: "item", Value: ptr("{{item}}")}},
+    WithParam: genTask.GetOutputResult(),
+}
+```
+
+---
+
+## Conditional Execution
+
+```go
+&forge.Step{
+    Name:     "deploy-prod",
+    Template: "deploy",
+    When:     "{{steps.approve.outputs.result}} == yes",
+}
+
+// With expressions
+&forge.Task{
+    Name:     "notify",
+    Template: "slack",
+    When:     expr.Tasks("build").Attr("status").Equals(expr.C("Failed")).Eq(),
+}
+```
+
+---
+
+## ContainerSet (Multi-container pod)
+
+```go
+&forge.ContainerSet{
+    Name: "setup-and-run",
+    Containers: []forge.ContainerNode{
+        {Name: "setup", Image: "alpine", Command: []string{"sh", "-c"}, Args: []string{"echo setup"}},
+        {Name: "main", Image: "python:3.11", Command: []string{"python"}, Args: []string{"-c", "print('done')"}, Dependencies: []string{"setup"}},
+    },
+    VolumeMounts: []forge.VolumeBuilder{
+        &forge.EmptyDirVolume{BaseVolume: forge.BaseVolume{Name: "shared", MountPath: "/shared"}},
+    },
+}
+```
+
+---
+
+## Resource Template (K8s resource operations)
+
+```go
+&forge.ResourceTemplate{
+    Name:   "create-configmap",
+    Action: "create",
+    Manifest: `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: my-config
+data:
+  key: "{{inputs.parameters.value}}"`,
+    Inputs:           []forge.Parameter{{Name: "value"}},
+    SuccessCondition: "status.phase == Active",
+}
+```
+
+---
+
+## HTTP Template
+
+```go
+&forge.HTTPTemplate{
+    Name:             "health-check",
+    URL:              "https://api.example.com/health",
+    Method:           "GET",
+    Headers:          map[string]string{"Accept": "application/json"},
+    SuccessCondition: "response.statusCode == 200",
+    Timeout:          "30s",
+}
+```
+
+---
+
+## Suspend Template
+
+```go
+// Manual approval gate (waits for user to resume)
+&forge.Suspend{Name: "approve"}
+
+// Timed delay
+&forge.Suspend{Name: "wait", Duration: "5m"}
+```
+
+---
+
+## Global Configuration
+
+```go
+cfg := forge.GetGlobalConfig()
+cfg.SetImage("python:3.11")              // default image for scripts
+cfg.SetNamespace("argo")                 // default namespace
+
+// Hooks — transform every template before build
+cfg.RegisterTemplateHook(func(tpl *model.TemplateModel) {
+    if tpl.Container != nil && tpl.Container.Resources == nil {
+        tpl.Container.Resources = &forge.ResourceRequirements{
+            Requests: forge.ResourceList{CPU: "50m", Memory: "64Mi"},
+        }
+    }
+})
+
+// Hooks — transform every workflow before build
+cfg.RegisterWorkflowHook(func(wf *model.WorkflowModel) {
+    if wf.Metadata.Labels == nil {
+        wf.Metadata.Labels = map[string]string{}
+    }
+    wf.Metadata.Labels["managed-by"] = "forge"
+})
+
+defer cfg.Reset() // restore defaults
+```
+
+---
+
+## Serialization
+
+```go
+// To YAML string
+yaml, err := w.ToYAML()
+
+// To JSON string
+jsonStr, err := w.ToJSON()
+
+// To unstructured map (for K8s dynamic client)
+dict, err := w.ToDict()
+
+// To file
+path, err := w.ToFile("/output", "my-workflow")
+
+// From YAML
+model, err := forge.FromYAML(yamlStr)
+
+// From JSON
+model, err := forge.FromJSON(jsonStr)
+
+// From file
+model, err := forge.FromFile("/path/to/workflow.yaml")
+```
+
+---
+
+## REST Client (Argo Workflows API)
+
+```go
+import "github.com/usetheodev/theo-forge/client"
+
+svc := client.NewWorkflowsService("https://argo.example.com", "Bearer token", "default")
+
+// Submit workflow
+result, err := svc.CreateWorkflow(ctx, workflow)
+
+// List workflows
+workflows, err := svc.ListWorkflows(ctx, "default")
+
+// Get workflow
+wf, err := svc.GetWorkflow(ctx, "my-workflow", "default")
+
+// Delete workflow
+err := svc.DeleteWorkflow(ctx, "my-workflow", "default")
+
+// Lint (dry-run validation)
+validated, err := svc.LintWorkflow(ctx, workflow)
+
+// Server info
+info, err := svc.GetInfo(ctx)
+version, err := svc.GetVersion(ctx)
+```
+
+---
+
+## Migration: map[string]interface{} → forge
+
+If the codebase builds Argo Workflows using raw maps, here is the conversion pattern:
+
+### Before (raw maps)
+```go
+workflow := map[string]interface{}{
+    "apiVersion": "argoproj.io/v1alpha1",
+    "kind":       "Workflow",
+    "metadata": map[string]interface{}{
+        "generateName": "build-",
+        "labels": map[string]interface{}{
+            "app": "ci",
+        },
+    },
+    "spec": map[string]interface{}{
+        "entrypoint": "main",
+        "templates": []interface{}{
+            map[string]interface{}{
+                "name": "main",
+                "container": map[string]interface{}{
+                    "image":   "alpine",
+                    "command": []interface{}{"echo"},
+                    "args":    []interface{}{"hello"},
+                },
+            },
+        },
+    },
+}
+```
+
+### After (forge)
+```go
+w := &forge.Workflow{
+    GenerateName: "build-",
+    Entrypoint:   "main",
+    Labels:       map[string]string{"app": "ci"},
+    Templates: []forge.Templatable{
+        &forge.Container{
+            Name:    "main",
+            Image:   "alpine",
+            Command: []string{"echo"},
+            Args:    []string{"hello"},
+        },
+    },
+}
+dict, _ := w.ToDict() // returns map[string]interface{} for K8s dynamic client
+```
+
+### Migration rules
+
+1. **Top-level fields** → Workflow struct fields (GenerateName, Entrypoint, Labels, etc.)
+2. **Templates array** → `[]forge.Templatable` with concrete types (Container, Script, DAG, Steps)
+3. **DAG tasks** → `forge.Task` structs added via `dag.AddTask()`
+4. **Steps groups** → `steps.AddSequentialStep()` and `steps.AddParallelGroup()`
+5. **CWT references** → `Task.TemplateRef` with `&forge.TemplateRef{Name: "cwt-name", Template: "tpl-name"}`
+6. **Inline templates** → `Task.Template` referencing a named template in the same workflow
+7. **Parameters** → `forge.Parameter{Name: "x", Value: ptr("v")}`
+8. **Volume claims** → `Workflow.VolumeClaimTemplates` with `forge.PVCVolume`
+9. **retryStrategy map** → `forge.RetryStrategy{Limit: ptr(3), ...}`
+10. **Resources map** → `forge.ResourceRequirements{Requests: forge.ResourceList{CPU: "100m", Memory: "128Mi"}, ...}`
+
+### For K8s dynamic client submission
+
+```go
+w := &forge.Workflow{...}
+dict, err := w.ToDict()
+if err != nil {
+    return err
+}
+obj := &unstructured.Unstructured{Object: dict}
+result, err := dynamicClient.Resource(workflowGVR).Namespace(ns).Create(ctx, obj, metav1.CreateOptions{})
+```
+
+---
+
+## Complete Real-World Example: CI/CD Pipeline
+
+```go
+package main
+
+import (
+    "fmt"
+    forge "github.com/usetheodev/theo-forge"
+    "github.com/usetheodev/theo-forge/expr"
+)
+
+func ptr(s string) *string { return &s }
+func ptrInt(i int) *int    { return &i }
+
+func main() {
+    // Reusable templates
+    cloneRepo := &forge.Container{
+        Name:    "clone",
+        Image:   "alpine/git:latest",
+        Command: []string{"sh", "-c"},
+        Args:    []string{fmt.Sprintf("git clone %s /workspace && cd /workspace && git checkout %s", expr.InputParam("repo"), expr.InputParam("sha"))},
+        Inputs:  []forge.Parameter{{Name: "repo"}, {Name: "sha"}},
+        VolumeMounts: []forge.VolumeBuilder{
+            &forge.EmptyDirVolume{BaseVolume: forge.BaseVolume{Name: "workspace", MountPath: "/workspace"}},
+        },
+    }
+
+    buildApp := &forge.Container{
+        Name:    "build",
+        Image:   "golang:1.22-alpine",
+        Command: []string{"sh", "-c"},
+        Args:    []string{"cd /workspace && go build -o /workspace/bin/app ./..."},
+        Resources: &forge.ResourceRequirements{
+            Requests: forge.ResourceList{CPU: "500m", Memory: "512Mi"},
+            Limits:   forge.ResourceList{CPU: "2000m", Memory: "2Gi"},
+        },
+        VolumeMounts: []forge.VolumeBuilder{
+            &forge.EmptyDirVolume{BaseVolume: forge.BaseVolume{Name: "workspace", MountPath: "/workspace"}},
+        },
+    }
+
+    runTests := &forge.Script{
+        Name:    "test",
+        Image:   "golang:1.22-alpine",
+        Command: []string{"sh", "-c"},
+        Source:  "cd /workspace && go test -race -count=1 ./...",
+        VolumeMounts: []forge.VolumeBuilder{
+            &forge.EmptyDirVolume{BaseVolume: forge.BaseVolume{Name: "workspace", MountPath: "/workspace"}},
+        },
+    }
+
+    // DAG pipeline
+    dag := &forge.DAG{Name: "ci-pipeline"}
+    clone := &forge.Task{
+        Name: "clone", Template: "clone",
+        Arguments: []forge.Parameter{
+            {Name: "repo", Value: ptr("https://github.com/org/app.git")},
+            {Name: "sha", Value: ptr("abc123")},
+        },
+    }
+    build := &forge.Task{Name: "build", Template: "build"}
+    test := &forge.Task{Name: "test", Template: "test"}
+
+    clone.Then(build)
+    clone.Then(test)
+    _ = dag.AddTasks(clone, build, test)
+
+    // Workflow
+    limit := 2
+    w := &forge.Workflow{
+        GenerateName:       "ci-",
+        Entrypoint:         "ci-pipeline",
+        ServiceAccountName: "ci-sa",
+        Parallelism:        ptrInt(4),
+        TTLStrategy:        &forge.TTLStrategy{SecondsAfterCompletion: ptrInt(3600)},
+        RetryStrategy: &forge.RetryStrategy{
+            Limit:       &limit,
+            RetryPolicy: forge.RetryOnFailure,
+        },
+        Volumes: []forge.VolumeBuilder{
+            &forge.EmptyDirVolume{BaseVolume: forge.BaseVolume{Name: "workspace"}},
+        },
+        Templates: []forge.Templatable{cloneRepo, buildApp, runTests, dag},
+    }
+
+    yaml, err := w.ToYAML()
+    if err != nil {
+        panic(err)
+    }
+    fmt.Println(yaml)
+}
+```
+
+---
+
+## Key Types Reference
+
+### forge.Workflow fields
+| Field | Type | Description |
+|---|---|---|
+| Name | string | Workflow name (mutually exclusive with GenerateName) |
+| GenerateName | string | Name prefix (K8s generates suffix) |
+| Namespace | string | K8s namespace |
+| Entrypoint | string | Name of the entry template |
+| Templates | []Templatable | All templates (Container, Script, DAG, Steps, etc.) |
+| Arguments | []Parameter | Workflow-level parameters |
+| Volumes | []VolumeBuilder | Volume definitions |
+| VolumeClaimTemplates | []PVCVolume | Dynamic PVC provisioning |
+| Labels | map[string]string | Metadata labels |
+| Annotations | map[string]string | Metadata annotations |
+| ServiceAccountName | string | K8s service account |
+| Parallelism | *int | Max concurrent pods |
+| OnExit | string | Exit handler template name |
+| TTLStrategy | *TTLStrategy | Auto-cleanup timing |
+| PodGC | *PodGC | Pod garbage collection |
+| RetryStrategy | *RetryStrategy | Workflow-level retry |
+| ImagePullSecrets | []string | Registry credentials |
+| Hooks | map[string]LifecycleHook | Lifecycle hooks |
+
+### forge.Container fields
+| Field | Type | Description |
+|---|---|---|
+| Name | string | Template name |
+| Image | string | Docker image |
+| Command | []string | Entrypoint |
+| Args | []string | Arguments |
+| Env | []EnvBuilder | Environment variables |
+| Resources | *ResourceRequirements | CPU/memory |
+| VolumeMounts | []VolumeBuilder | Volume mounts |
+| Inputs | []Parameter | Input parameters |
+| Outputs | []Parameter | Output parameters |
+| InputArtifacts | []ArtifactBuilder | Input artifacts |
+| OutputArtifacts | []ArtifactBuilder | Output artifacts |
+| RetryStrategy | *RetryStrategy | Retry config |
+| InitContainers | []UserContainer | Init containers |
+| Sidecars | []UserContainer | Sidecar containers |
+
+### forge.Script fields
+Same as Container, plus:
+| Field | Type | Description |
+|---|---|---|
+| Source | string | Script source code |
+
+### forge.Task fields (DAG)
+| Field | Type | Description |
+|---|---|---|
+| Name | string | Task name |
+| Template | string | Template to execute |
+| TemplateRef | *TemplateRef | Reference to CWT/WT |
+| Arguments | []Parameter | Arguments to pass |
+| ArgumentArtifacts | []ArtifactBuilder | Artifact arguments |
+| Depends | string | Dependency expression |
+| When | string | Conditional execution |
+| WithItems | []interface{} | Static loop items |
+| WithParam | string | Dynamic loop from output |
+| ContinueOn | *ContinueOn | Continue on failure |
+
+### forge.Step fields (Steps)
+Same fields as Task, used in Steps context instead of DAG.
+
+### forge.Parameter fields
+| Field | Type | Description |
+|---|---|---|
+| Name | string | Parameter name |
+| Value | *string | Literal value |
+| Default | *string | Default value |
+| Description | string | Documentation |
+| Enum | []string | Allowed values |
+| ValueFrom | *ValueFrom | Dynamic value source |
+| GlobalName | string | Global parameter name |
