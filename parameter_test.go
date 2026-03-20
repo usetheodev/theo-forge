@@ -196,8 +196,3 @@ func TestParameterModelJSON(t *testing.T) {
 		t.Errorf("json name = %v, want 'msg'", m["name"])
 	}
 }
-
-// helper
-func ptrStr(s string) *string {
-	return &s
-}
