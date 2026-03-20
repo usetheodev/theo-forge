@@ -3,6 +3,8 @@ package forge
 import (
 	"errors"
 	"testing"
+
+	"github.com/usetheodev/theo-forge/model"
 )
 
 func TestTaskThen(t *testing.T) {
@@ -164,7 +166,7 @@ func TestDAGBuildTemplate(t *testing.T) {
 	}
 
 	// Verify dependencies
-	taskMap := make(map[string]DAGTaskModel)
+	taskMap := make(map[string]model.DAGTaskModel)
 	for _, task := range tpl.DAG.Tasks {
 		taskMap[task.Name] = task
 	}

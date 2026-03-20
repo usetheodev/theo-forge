@@ -1,0 +1,17 @@
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: nightly-build
+  namespace: ci
+spec:
+  schedule: 0 2 * * *
+  timezone: America/Sao_Paulo
+  workflowSpec:
+    entrypoint: build
+    templates:
+    - container:
+        command:
+        - make
+        - build
+        image: golang:1.22
+      name: build

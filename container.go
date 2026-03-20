@@ -1,6 +1,10 @@
 package forge
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/usetheodev/theo-forge/model"
+)
 
 // Container represents an Argo Workflows container template.
 type Container struct {
@@ -47,127 +51,224 @@ type Container struct {
 	Metrics []Metric
 	// Ports exposed by the container.
 	Ports []ContainerPort
+	// Daemon marks this container as a daemon.
+	Daemon *bool
+	// Memoize caches template outputs.
+	Memoize *model.MemoizeModel
+	// Synchronization configures synchronization constraints.
+	Synchronization *model.SynchronizationModel
+	// PodSpecPatch is a JSON/YAML patch for the pod spec.
+	PodSpecPatch string
+	// Hooks are lifecycle hooks.
+	Hooks map[string]model.LifecycleHook
+	// ArchiveLocation overrides the default artifact location.
+	ArchiveLocation *model.ArtifactLocation
+	// InitContainers are init containers for the pod.
+	InitContainers []UserContainer
+	// Sidecars are sidecar containers.
+	Sidecars []UserContainer
+	// Tolerations for pod scheduling.
+	Tolerations []model.Toleration
+	// Parallelism limits concurrent pods.
+	Parallelism *int
+	// SecurityContext for the container.
+	SecurityContext *model.SecurityContext
+	// EnvFrom sources for env vars.
+	EnvFrom []model.EnvFromSource
+	// ReadinessProbe for the container.
+	ReadinessProbe *model.Probe
+	// LivenessProbe for the container.
+	LivenessProbe *model.Probe
 }
 
 func (c *Container) GetName() string {
 	return c.Name
 }
 
-func (c *Container) buildEnv() []EnvVarModel {
-	if len(c.Env) == 0 {
-		return nil
-	}
-	envs := make([]EnvVarModel, len(c.Env))
-	for i, e := range c.Env {
-		envs[i] = e.Build()
-	}
-	return envs
-}
-
-func (c *Container) buildVolumeMounts() []VolumeMountModel {
-	if len(c.VolumeMounts) == 0 {
-		return nil
-	}
-	mounts := make([]VolumeMountModel, len(c.VolumeMounts))
-	for i, v := range c.VolumeMounts {
-		mounts[i] = v.BuildVolumeMount()
-	}
-	return mounts
-}
-
-func (c *Container) buildInputs() *InputsModel {
-	var params []ParameterModel
-	for _, p := range c.Inputs {
-		m, err := p.AsInput()
-		if err != nil {
-			continue
-		}
-		params = append(params, m)
-	}
-	var arts []ArtifactModel
-	for _, a := range c.InputArtifacts {
-		m, err := a.Build()
-		if err != nil {
-			continue
-		}
-		arts = append(arts, m)
-	}
-	if len(params) == 0 && len(arts) == 0 {
-		return nil
-	}
-	return &InputsModel{Parameters: params, Artifacts: arts}
-}
-
-func (c *Container) buildOutputs() *OutputsModel {
-	var params []ParameterModel
-	for _, p := range c.Outputs {
-		m, err := p.AsOutput()
-		if err != nil {
-			continue
-		}
-		params = append(params, m)
-	}
-	var arts []ArtifactModel
-	for _, a := range c.OutputArtifacts {
-		m, err := a.Build()
-		if err != nil {
-			continue
-		}
-		arts = append(arts, m)
-	}
-	if len(params) == 0 && len(arts) == 0 {
-		return nil
-	}
-	return &OutputsModel{Parameters: params, Artifacts: arts}
-}
-
-func (c *Container) buildMetadata() *MetadataModel {
-	if len(c.Labels) == 0 && len(c.Annotations) == 0 {
-		return nil
-	}
-	return &MetadataModel{Labels: c.Labels, Annotations: c.Annotations}
-}
-
-func (c *Container) buildMetrics() *MetricsModel {
-	if len(c.Metrics) == 0 {
-		return nil
-	}
-	return &MetricsModel{Prometheus: c.Metrics}
-}
-
 // BuildTemplate builds the Argo Template for this container.
-func (c *Container) BuildTemplate() (TemplateModel, error) {
+func (c *Container) BuildTemplate() (model.TemplateModel, error) {
 	if c.Name == "" {
-		return TemplateModel{}, fmt.Errorf("container template name cannot be empty")
+		return model.TemplateModel{}, fmt.Errorf("container template name cannot be empty")
 	}
 
-	var rs *RetryStrategyModel
-	if c.RetryStrategy != nil {
-		m := c.RetryStrategy.Build()
-		rs = &m
+	inputs, err := buildInputsFromParams(c.Inputs, c.InputArtifacts)
+	if err != nil {
+		return model.TemplateModel{}, fmt.Errorf("container %q: %w", c.Name, err)
 	}
 
-	return TemplateModel{
+	outputs, err := buildOutputsFromParams(c.Outputs, c.OutputArtifacts)
+	if err != nil {
+		return model.TemplateModel{}, fmt.Errorf("container %q: %w", c.Name, err)
+	}
+
+	var initContainers []model.ContainerModel
+	for _, ic := range c.InitContainers {
+		initContainers = append(initContainers, ic.Build())
+	}
+	var sidecars []model.ContainerModel
+	for _, sc := range c.Sidecars {
+		sidecars = append(sidecars, sc.Build())
+	}
+
+	return model.TemplateModel{
 		Name: c.Name,
-		Container: &ContainerModel{
+		Container: &model.ContainerModel{
 			Image:           c.Image,
 			Command:         c.Command,
 			Args:            c.Args,
 			WorkingDir:      c.WorkingDir,
-			Env:             c.buildEnv(),
+			Env:             buildEnvVars(c.Env),
+			EnvFrom:         c.EnvFrom,
 			Resources:       c.Resources,
-			VolumeMounts:    c.buildVolumeMounts(),
+			VolumeMounts:    buildVolumeMountModels(c.VolumeMounts),
 			ImagePullPolicy: string(c.ImagePullPolicy),
 			Ports:           c.Ports,
+			SecurityContext: c.SecurityContext,
+			ReadinessProbe:  c.ReadinessProbe,
+			LivenessProbe:   c.LivenessProbe,
 		},
-		Inputs:                c.buildInputs(),
-		Outputs:               c.buildOutputs(),
-		Metadata:              c.buildMetadata(),
+		Inputs:                inputs,
+		Outputs:               outputs,
+		Metadata:              buildMetadataModel(c.Labels, c.Annotations),
 		Timeout:               c.Timeout,
 		ActiveDeadlineSeconds: c.ActiveDeadlineSeconds,
-		RetryStrategy:         rs,
+		RetryStrategy:         buildRetryStrategyModel(c.RetryStrategy),
 		NodeSelector:          c.NodeSelector,
 		ServiceAccountName:    c.ServiceAccountName,
-		Metrics:               c.buildMetrics(),
+		Metrics:               buildMetricsModel(c.Metrics),
+		Daemon:                c.Daemon,
+		Memoize:               c.Memoize,
+		Synchronization:       c.Synchronization,
+		PodSpecPatch:          c.PodSpecPatch,
+		Hooks:                 c.Hooks,
+		ArchiveLocation:       c.ArchiveLocation,
+		InitContainers:        initContainers,
+		Sidecars:              sidecars,
+		Tolerations:           c.Tolerations,
+		Parallelism:           c.Parallelism,
+	}, nil
+}
+
+// --- Script ---
+
+// Script represents an Argo Workflows script template.
+type Script struct {
+	// Name is the template name.
+	Name string
+	// Image is the Docker image.
+	Image string
+	// Command is the script interpreter (e.g., ["python"], ["bash"]).
+	Command []string
+	// Args are additional arguments.
+	Args []string
+	// Source is the script source code.
+	Source string
+	// WorkingDir is the working directory.
+	WorkingDir string
+	// ImagePullPolicy defines when to pull the image.
+	ImagePullPolicy ImagePullPolicy
+	// Env is the list of environment variables.
+	Env []EnvBuilder
+	// Resources defines CPU/memory requests and limits.
+	Resources *ResourceRequirements
+	// VolumeMounts are the volume mounts.
+	VolumeMounts []VolumeBuilder
+	// Inputs are the template inputs.
+	Inputs []Parameter
+	// Outputs are the template outputs.
+	Outputs []Parameter
+	// InputArtifacts are input artifacts.
+	InputArtifacts []ArtifactBuilder
+	// OutputArtifacts are output artifacts.
+	OutputArtifacts []ArtifactBuilder
+	// Timeout is the template timeout.
+	Timeout string
+	// ActiveDeadlineSeconds kills the template after X seconds.
+	ActiveDeadlineSeconds *int
+	// RetryStrategy configures retry behavior.
+	RetryStrategy *RetryStrategy
+	// NodeSelector constrains pod scheduling.
+	NodeSelector map[string]string
+	// ServiceAccountName for the pod.
+	ServiceAccountName string
+	// Labels for the template.
+	Labels map[string]string
+	// Annotations for the template.
+	Annotations map[string]string
+	// Metrics for the template.
+	Metrics []Metric
+	// Daemon marks this script as a daemon.
+	Daemon *bool
+	// Memoize caches template outputs.
+	Memoize *model.MemoizeModel
+	// Synchronization constraints.
+	Synchronization *model.SynchronizationModel
+	// PodSpecPatch is a JSON/YAML patch for the pod spec.
+	PodSpecPatch string
+	// Hooks are lifecycle hooks.
+	Hooks map[string]model.LifecycleHook
+	// Sidecars are sidecar containers.
+	Sidecars []UserContainer
+	// Tolerations for pod scheduling.
+	Tolerations []model.Toleration
+}
+
+func (s *Script) GetName() string {
+	return s.Name
+}
+
+// BuildTemplate builds the Argo Template for this script.
+func (s *Script) BuildTemplate() (model.TemplateModel, error) {
+	if s.Name == "" {
+		return model.TemplateModel{}, fmt.Errorf("script template name cannot be empty")
+	}
+	if s.Source == "" {
+		return model.TemplateModel{}, fmt.Errorf("script source cannot be empty")
+	}
+
+	inputs, err := buildInputsFromParams(s.Inputs, s.InputArtifacts)
+	if err != nil {
+		return model.TemplateModel{}, fmt.Errorf("script %q: %w", s.Name, err)
+	}
+
+	outputs, err := buildOutputsFromParams(s.Outputs, s.OutputArtifacts)
+	if err != nil {
+		return model.TemplateModel{}, fmt.Errorf("script %q: %w", s.Name, err)
+	}
+
+	var sidecars []model.ContainerModel
+	for _, sc := range s.Sidecars {
+		sidecars = append(sidecars, sc.Build())
+	}
+
+	return model.TemplateModel{
+		Name: s.Name,
+		Script: &model.ScriptModel{
+			Image:           s.Image,
+			Command:         s.Command,
+			Args:            s.Args,
+			Source:          s.Source,
+			WorkingDir:      s.WorkingDir,
+			Env:             buildEnvVars(s.Env),
+			Resources:       s.Resources,
+			VolumeMounts:    buildVolumeMountModels(s.VolumeMounts),
+			ImagePullPolicy: string(s.ImagePullPolicy),
+		},
+		Inputs:                inputs,
+		Outputs:               outputs,
+		Metadata:              buildMetadataModel(s.Labels, s.Annotations),
+		Timeout:               s.Timeout,
+		ActiveDeadlineSeconds: s.ActiveDeadlineSeconds,
+		RetryStrategy:         buildRetryStrategyModel(s.RetryStrategy),
+		NodeSelector:          s.NodeSelector,
+		ServiceAccountName:    s.ServiceAccountName,
+		Metrics:               buildMetricsModel(s.Metrics),
+		Daemon:                s.Daemon,
+		Memoize:               s.Memoize,
+		Synchronization:       s.Synchronization,
+		PodSpecPatch:          s.PodSpecPatch,
+		Hooks:                 s.Hooks,
+		Sidecars:              sidecars,
+		Tolerations:           s.Tolerations,
 	}, nil
 }

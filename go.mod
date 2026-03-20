@@ -1,3 +1,7 @@
-module github.com/usetheo/theo/forge
+module github.com/usetheodev/theo-forge
 
 go 1.25.0
+
+require sigs.k8s.io/yaml v1.6.0
+
+require go.yaml.in/yaml/v2 v2.4.2 // indirect

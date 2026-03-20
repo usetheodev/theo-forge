@@ -11,8 +11,8 @@ func TestEnvBuild(t *testing.T) {
 	if model.Name != "MY_VAR" {
 		t.Errorf("name = %q, want 'MY_VAR'", model.Name)
 	}
-	if model.Value != "hello" {
-		t.Errorf("value = %q, want 'hello'", model.Value)
+	if model.Value == nil || *model.Value != "hello" {
+		t.Errorf("value = %v, want 'hello'", model.Value)
 	}
 }
 

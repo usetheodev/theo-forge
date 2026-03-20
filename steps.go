@@ -1,18 +1,10 @@
 package forge
 
-import "fmt"
+import (
+	"fmt"
 
-// StepModel is the serializable Argo Workflow step.
-type StepModel struct {
-	Name        string          `json:"name" yaml:"name"`
-	Template    string          `json:"template,omitempty" yaml:"template,omitempty"`
-	TemplateRef *TemplateRef    `json:"templateRef,omitempty" yaml:"templateRef,omitempty"`
-	Arguments   *ArgumentsModel `json:"arguments,omitempty" yaml:"arguments,omitempty"`
-	When        string          `json:"when,omitempty" yaml:"when,omitempty"`
-	ContinueOn  *ContinueOn    `json:"continueOn,omitempty" yaml:"continueOn,omitempty"`
-	WithItems   []interface{}   `json:"withItems,omitempty" yaml:"withItems,omitempty"`
-	WithParam   string          `json:"withParam,omitempty" yaml:"withParam,omitempty"`
-}
+	"github.com/usetheodev/theo-forge/model"
+)
 
 // Step represents a single step in a Steps template.
 type Step struct {
@@ -21,7 +13,7 @@ type Step struct {
 	// Template is the template to invoke.
 	Template string
 	// TemplateRef references a template in a WorkflowTemplate.
-	TemplateRef *TemplateRef
+	TemplateRef *model.TemplateRef
 	// Arguments are the template arguments.
 	Arguments []Parameter
 	// ArgumentArtifacts are artifact arguments.
@@ -29,11 +21,19 @@ type Step struct {
 	// When is a conditional expression.
 	When string
 	// ContinueOn defines when to continue after failure.
-	ContinueOn *ContinueOn
+	ContinueOn *model.ContinueOn
 	// WithItems enables fan-out over a list.
 	WithItems []interface{}
 	// WithParam enables fan-out from a parameter.
 	WithParam string
+	// WithSequence generates a list of numbers for fan-out.
+	WithSequence *model.Sequence
+	// Inline is an inline template definition.
+	Inline Templatable
+	// OnExit is the exit handler template name for this step.
+	OnExit string
+	// Hooks are lifecycle hooks for this step.
+	Hooks map[string]model.LifecycleHook
 }
 
 // GetOutputParameter returns a parameter reference for this step's output.
@@ -52,39 +52,52 @@ func (s *Step) GetOutputArtifact(artifactName string) string {
 }
 
 // BuildStep builds the serializable step model.
-func (s *Step) BuildStep() (StepModel, error) {
+func (s *Step) BuildStep() (model.StepModel, error) {
 	if s.Name == "" {
-		return StepModel{}, fmt.Errorf("step name cannot be empty")
+		return model.StepModel{}, fmt.Errorf("step name cannot be empty")
 	}
 
-	var args *ArgumentsModel
+	var args *model.ArgumentsModel
 	if len(s.Arguments) > 0 || len(s.ArgumentArtifacts) > 0 {
-		args = &ArgumentsModel{}
+		args = &model.ArgumentsModel{}
 		for _, p := range s.Arguments {
 			m, err := p.AsArgument()
 			if err != nil {
-				return StepModel{}, fmt.Errorf("step %q argument: %w", s.Name, err)
+				return model.StepModel{}, fmt.Errorf("step %q argument: %w", s.Name, err)
 			}
 			args.Parameters = append(args.Parameters, m)
 		}
 		for _, a := range s.ArgumentArtifacts {
 			m, err := a.Build()
 			if err != nil {
-				return StepModel{}, fmt.Errorf("step %q artifact: %w", s.Name, err)
+				return model.StepModel{}, fmt.Errorf("step %q artifact: %w", s.Name, err)
 			}
 			args.Artifacts = append(args.Artifacts, m)
 		}
 	}
 
-	return StepModel{
-		Name:        s.Name,
-		Template:    s.Template,
-		TemplateRef: s.TemplateRef,
-		Arguments:   args,
-		When:        s.When,
-		ContinueOn:  s.ContinueOn,
-		WithItems:   s.WithItems,
-		WithParam:   s.WithParam,
+	var inline *model.TemplateModel
+	if s.Inline != nil {
+		m, err := s.Inline.BuildTemplate()
+		if err != nil {
+			return model.StepModel{}, fmt.Errorf("step %q inline: %w", s.Name, err)
+		}
+		inline = &m
+	}
+
+	return model.StepModel{
+		Name:         s.Name,
+		Template:     s.Template,
+		TemplateRef:  s.TemplateRef,
+		Inline:       inline,
+		Arguments:    args,
+		When:         s.When,
+		ContinueOn:   s.ContinueOn,
+		WithItems:    s.WithItems,
+		WithParam:    s.WithParam,
+		WithSequence: s.WithSequence,
+		OnExit:       s.OnExit,
+		Hooks:        s.Hooks,
 	}, nil
 }
 
@@ -108,8 +121,8 @@ func (p *Parallel) AddStep(step *Step) error {
 	return nil
 }
 
-func (p *Parallel) buildSteps() ([]StepModel, error) {
-	models := make([]StepModel, 0, len(p.Steps))
+func (p *Parallel) buildSteps() ([]model.StepModel, error) {
+	models := make([]model.StepModel, 0, len(p.Steps))
 	for _, s := range p.Steps {
 		m, err := s.BuildStep()
 		if err != nil {
@@ -178,71 +191,35 @@ func (s *Steps) GetName() string {
 	return s.Name
 }
 
-func (s *Steps) buildInputs() *InputsModel {
-	var params []ParameterModel
-	for _, p := range s.Inputs {
-		m, err := p.AsInput()
-		if err != nil {
-			continue
-		}
-		params = append(params, m)
-	}
-	var arts []ArtifactModel
-	for _, a := range s.InputArtifacts {
-		m, err := a.Build()
-		if err != nil {
-			continue
-		}
-		arts = append(arts, m)
-	}
-	if len(params) == 0 && len(arts) == 0 {
-		return nil
-	}
-	return &InputsModel{Parameters: params, Artifacts: arts}
-}
-
-func (s *Steps) buildOutputs() *OutputsModel {
-	var params []ParameterModel
-	for _, p := range s.Outputs {
-		m, err := p.AsOutput()
-		if err != nil {
-			continue
-		}
-		params = append(params, m)
-	}
-	var arts []ArtifactModel
-	for _, a := range s.OutputArtifacts {
-		m, err := a.Build()
-		if err != nil {
-			continue
-		}
-		arts = append(arts, m)
-	}
-	if len(params) == 0 && len(arts) == 0 {
-		return nil
-	}
-	return &OutputsModel{Parameters: params, Artifacts: arts}
-}
-
 // BuildTemplate builds the Argo Template for this Steps template.
-func (s *Steps) BuildTemplate() (TemplateModel, error) {
+func (s *Steps) BuildTemplate() (model.TemplateModel, error) {
 	if s.Name == "" {
-		return TemplateModel{}, fmt.Errorf("steps template name cannot be empty")
+		return model.TemplateModel{}, fmt.Errorf("steps template name cannot be empty")
 	}
 
-	steps := make([][]StepModel, 0, len(s.StepGroups))
+	steps := make([][]model.StepModel, 0, len(s.StepGroups))
 	for _, group := range s.StepGroups {
 		models, err := group.buildSteps()
 		if err != nil {
-			return TemplateModel{}, err
+			return model.TemplateModel{}, err
 		}
 		steps = append(steps, models)
 	}
 
-	return TemplateModel{
+	inputs, err := buildInputsFromParams(s.Inputs, s.InputArtifacts)
+	if err != nil {
+		return model.TemplateModel{}, fmt.Errorf("steps %q: %w", s.Name, err)
+	}
+
+	outputs, err := buildOutputsFromParams(s.Outputs, s.OutputArtifacts)
+	if err != nil {
+		return model.TemplateModel{}, fmt.Errorf("steps %q: %w", s.Name, err)
+	}
+
+	return model.TemplateModel{
 		Name:    s.Name,
 		Steps:   steps,
-		Inputs:  s.buildInputs(),
-		Outputs: s.buildOutputs(),
+		Inputs:  inputs,
+		Outputs: outputs,
 	}, nil
 }
