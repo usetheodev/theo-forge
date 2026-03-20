@@ -611,18 +611,15 @@ func TestRoundTripTestdataExamples(t *testing.T) {
 // TestRoundTripWorkflowBuilder verifies that workflows built programmatically
 // produce valid models that round-trip cleanly.
 func TestRoundTripWorkflowBuilder(t *testing.T) {
-	builders := map[string]func() (*Workflow, error){
-		"hello-world": func() (*Workflow, error) { return buildHelloWorld(), nil },
-		"steps":       func() (*Workflow, error) { return buildSteps(), nil },
-		"dag-diamond": func() (*Workflow, error) { return buildDagDiamond(), nil },
+	builders := map[string]func() *Workflow{
+		"hello-world": buildHelloWorld,
+		"steps":       buildSteps,
+		"dag-diamond": buildDagDiamond,
 	}
 
 	for name, builder := range builders {
 		t.Run(name, func(t *testing.T) {
-			w, err := builder()
-			if err != nil {
-				t.Fatalf("build %s: %v", name, err)
-			}
+			w := builder()
 
 			// Build to model
 			m, err := w.Build()

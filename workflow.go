@@ -160,8 +160,8 @@ func (w *Workflow) buildVolumeClaimTemplates() ([]model.PVCModel, error) {
 		return nil, nil
 	}
 	pvcs := make([]model.PVCModel, 0, len(w.VolumeClaimTemplates))
-	for _, v := range w.VolumeClaimTemplates {
-		m, err := v.BuildPVC()
+	for i := range w.VolumeClaimTemplates {
+		m, err := w.VolumeClaimTemplates[i].BuildPVC()
 		if err != nil {
 			return nil, fmt.Errorf("volume claim template: %w", err)
 		}

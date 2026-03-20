@@ -1,6 +1,7 @@
 package forge
 
 import (
+	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -170,8 +171,12 @@ func assertSemantic(t *testing.T, name, got, want string) {
 	}
 
 	var gotMap, wantMap map[string]interface{}
-	json.Unmarshal(gotJSON, &gotMap)
-	json.Unmarshal(wantJSON, &wantMap)
+	if err := json.Unmarshal(gotJSON, &gotMap); err != nil {
+		t.Fatalf("unmarshal got JSON for %s: %v", name, err)
+	}
+	if err := json.Unmarshal(wantJSON, &wantMap); err != nil {
+		t.Fatalf("unmarshal want JSON for %s: %v", name, err)
+	}
 
 	cleanMap(gotMap)
 	cleanMap(wantMap)
@@ -182,7 +187,7 @@ func assertSemantic(t *testing.T, name, got, want string) {
 	gotBytes, _ := json.MarshalIndent(gotNorm, "", "  ")
 	wantBytes, _ := json.MarshalIndent(wantNorm, "", "  ")
 
-	if string(gotBytes) != string(wantBytes) {
+	if !bytes.Equal(gotBytes, wantBytes) {
 		diffs := findDiffs("", gotNorm, wantNorm)
 		if len(diffs) > 0 {
 			t.Errorf("round-trip mismatch for %s:\n%s", name, strings.Join(diffs, "\n"))

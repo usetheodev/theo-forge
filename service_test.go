@@ -132,7 +132,7 @@ func TestServiceCreateWorkflowUsesWorkflowNamespace(t *testing.T) {
 		Entrypoint: "main",
 		Templates:  []Templatable{&Container{Name: "main", Image: "alpine"}},
 	}
-	svc.CreateWorkflow(context.Background(), w)
+	_, _ = svc.CreateWorkflow(context.Background(), w)
 }
 
 func TestServiceGetWorkflow(t *testing.T) {

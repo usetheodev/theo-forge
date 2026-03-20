@@ -65,7 +65,7 @@ func (e Expr) Index(i int) Expr {
 
 // Key accesses a key on the expression.
 func (e Expr) Key(k string) Expr {
-	return Expr{repr: fmt.Sprintf(`%s["%s"]`, e.repr, k)}
+	return Expr{repr: fmt.Sprintf("%s[%q]", e.repr, k)}
 }
 
 // Slice returns a slice expression.

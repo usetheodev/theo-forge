@@ -149,7 +149,7 @@ func TestDAGBuildTemplate(t *testing.T) {
 	b.Then(d)
 	c.Then(d)
 
-	dag.AddTasks(a, b, c, d)
+	_ = dag.AddTasks(a, b, c, d)
 
 	tpl, err := dag.BuildTemplate()
 	if err != nil {

@@ -60,21 +60,21 @@ func (s *WorkflowsService) FormatToken() string {
 	return "Bearer " + s.Token
 }
 
-func (s *WorkflowsService) doRequest(ctx context.Context, method, path string, body interface{}) ([]byte, int, error) {
+func (s *WorkflowsService) doRequest(ctx context.Context, method, path string, body interface{}) ([]byte, error) {
 	url := s.Host + path
 
 	var reqBody io.Reader
 	if body != nil {
 		data, err := json.Marshal(body)
 		if err != nil {
-			return nil, 0, fmt.Errorf("marshal request body: %w", err)
+			return nil, fmt.Errorf("marshal request body: %w", err)
 		}
 		reqBody = bytes.NewReader(data)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, method, url, reqBody)
 	if err != nil {
-		return nil, 0, fmt.Errorf("create request: %w", err)
+		return nil, fmt.Errorf("create request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -84,23 +84,23 @@ func (s *WorkflowsService) doRequest(ctx context.Context, method, path string, b
 
 	resp, err := s.HTTPClient.Do(req)
 	if err != nil {
-		return nil, 0, fmt.Errorf("execute request: %w", err)
+		return nil, fmt.Errorf("execute request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, resp.StatusCode, fmt.Errorf("read response: %w", err)
+		return nil, fmt.Errorf("read response: %w", err)
 	}
 
 	if resp.StatusCode >= 400 {
-		return respBody, resp.StatusCode, &APIError{
+		return respBody, &APIError{
 			StatusCode: resp.StatusCode,
 			Message:    string(respBody),
 		}
 	}
 
-	return respBody, resp.StatusCode, nil
+	return respBody, nil
 }
 
 // APIError represents an error from the Argo API.
@@ -129,7 +129,7 @@ func (s *WorkflowsService) CreateWorkflowFromModel(ctx context.Context, wfModel 
 	}
 
 	body := WorkflowCreateRequest{Workflow: wfModel}
-	respBody, _, err := s.doRequest(ctx, http.MethodPost, "/api/v1/workflows/"+ns, body)
+	respBody, err := s.doRequest(ctx, http.MethodPost, "/api/v1/workflows/"+ns, body)
 	if err != nil {
 		return model.WorkflowModel{}, err
 	}
@@ -146,7 +146,7 @@ func (s *WorkflowsService) GetWorkflow(ctx context.Context, name, namespace stri
 	if namespace == "" {
 		namespace = s.Namespace
 	}
-	respBody, _, err := s.doRequest(ctx, http.MethodGet, "/api/v1/workflows/"+namespace+"/"+name, nil)
+	respBody, err := s.doRequest(ctx, http.MethodGet, "/api/v1/workflows/"+namespace+"/"+name, nil)
 	if err != nil {
 		return model.WorkflowModel{}, err
 	}
@@ -163,7 +163,7 @@ func (s *WorkflowsService) DeleteWorkflow(ctx context.Context, name, namespace s
 	if namespace == "" {
 		namespace = s.Namespace
 	}
-	_, _, err := s.doRequest(ctx, http.MethodDelete, "/api/v1/workflows/"+namespace+"/"+name, nil)
+	_, err := s.doRequest(ctx, http.MethodDelete, "/api/v1/workflows/"+namespace+"/"+name, nil)
 	return err
 }
 
@@ -177,7 +177,7 @@ func (s *WorkflowsService) ListWorkflows(ctx context.Context, namespace string) 
 	if namespace == "" {
 		namespace = s.Namespace
 	}
-	respBody, _, err := s.doRequest(ctx, http.MethodGet, "/api/v1/workflows/"+namespace, nil)
+	respBody, err := s.doRequest(ctx, http.MethodGet, "/api/v1/workflows/"+namespace, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -197,7 +197,7 @@ func (s *WorkflowsService) LintWorkflowFromModel(ctx context.Context, wfModel mo
 	}
 
 	body := WorkflowCreateRequest{Workflow: wfModel}
-	respBody, _, err := s.doRequest(ctx, http.MethodPost, "/api/v1/workflows/"+ns+"/lint", body)
+	respBody, err := s.doRequest(ctx, http.MethodPost, "/api/v1/workflows/"+ns+"/lint", body)
 	if err != nil {
 		return model.WorkflowModel{}, err
 	}
@@ -233,7 +233,7 @@ func (s *WorkflowsService) LintWorkflow(ctx context.Context, b Buildable) (model
 
 // GetInfo returns server info.
 func (s *WorkflowsService) GetInfo(ctx context.Context) (map[string]interface{}, error) {
-	respBody, _, err := s.doRequest(ctx, http.MethodGet, "/api/v1/info", nil)
+	respBody, err := s.doRequest(ctx, http.MethodGet, "/api/v1/info", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -246,7 +246,7 @@ func (s *WorkflowsService) GetInfo(ctx context.Context) (map[string]interface{},
 
 // GetVersion returns server version.
 func (s *WorkflowsService) GetVersion(ctx context.Context) (map[string]interface{}, error) {
-	respBody, _, err := s.doRequest(ctx, http.MethodGet, "/api/v1/version", nil)
+	respBody, err := s.doRequest(ctx, http.MethodGet, "/api/v1/version", nil)
 	if err != nil {
 		return nil, err
 	}

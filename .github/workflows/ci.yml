@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache: true
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test with coverage
+        run: go test -count=1 -race -coverprofile=coverage.out -covermode=atomic ./...
+
+      - name: Upload coverage
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.out
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache: true
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: latest
+
+  security:
+    name: Security
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache: true
+
+      - name: govulncheck
+        uses: golang/govulncheck-action@v1
+        with:
+          go-version-input: "1.25"
+
+      - name: gosec
+        uses: securego/gosec@master
+        with:
+          args: -exclude-dir=testdata ./...

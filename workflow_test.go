@@ -75,7 +75,7 @@ func TestWorkflowWithDAG(t *testing.T) {
 	a := &Task{Name: "A", Template: "echo"}
 	b := &Task{Name: "B", Template: "echo"}
 	a.Then(b)
-	dag.AddTasks(a, b)
+	_ = dag.AddTasks(a, b)
 
 	w := &Workflow{
 		Name:       "dag-workflow",
@@ -365,7 +365,7 @@ func TestWorkflowWithImagePullSecrets(t *testing.T) {
 
 func TestWorkflowWithSteps(t *testing.T) {
 	steps := &Steps{Name: "main"}
-	steps.AddSequentialStep(&Step{Name: "echo", Template: "echo-tpl"})
+	_ = steps.AddSequentialStep(&Step{Name: "echo", Template: "echo-tpl"})
 
 	w := &Workflow{
 		Name:       "steps-workflow",
@@ -407,7 +407,7 @@ func TestWorkflowComplexDiamond(t *testing.T) {
 	a.Then(c)
 	b.Then(d)
 	c.Then(d)
-	dag.AddTasks(a, b, c, d)
+	_ = dag.AddTasks(a, b, c, d)
 
 	w := &Workflow{
 		Name:       "diamond-workflow",
@@ -1176,7 +1176,7 @@ func TestOutputRefsInWorkflow(t *testing.T) {
 		},
 	}
 	gen.Then(consume)
-	dag.AddTasks(gen, consume)
+	_ = dag.AddTasks(gen, consume)
 
 	w := &Workflow{
 		Name:       "output-refs",

@@ -67,8 +67,8 @@ func (cs *ContainerSet) BuildTemplate() (model.TemplateModel, error) {
 	}
 
 	containers := make([]model.ContainerModel, len(cs.Containers))
-	for i, c := range cs.Containers {
-		containers[i] = c.buildModel()
+	for i := range cs.Containers {
+		containers[i] = cs.Containers[i].buildModel()
 	}
 
 	var inputs *model.InputsModel
