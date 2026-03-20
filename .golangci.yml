@@ -14,6 +14,14 @@ linters:
     - misspell
     - unconvert
     - unparam
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - errcheck
+          - unparam
+    paths:
+      - testdata
 
   settings:
     gocritic:
@@ -22,12 +30,3 @@ linters:
         - performance
       disabled-checks:
         - hugeParam
-
-issues:
-  exclude-dirs:
-    - testdata
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - errcheck
-        - unparam
