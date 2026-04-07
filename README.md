@@ -1,4 +1,10 @@
 <p align="center">
+  <a href="https://usetheo.dev">
+    <img src="https://usetheo.dev/logo.png" alt="Theo" height="80" />
+  </a>
+</p>
+
+<p align="center">
   <strong>Forge</strong><br>
   <em>Build Argo Workflows in Go. No YAML required.</em>
 </p>
