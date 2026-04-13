@@ -30,6 +30,7 @@ type TemplateModel struct {
 	Daemon                *bool                `json:"daemon,omitempty" yaml:"daemon,omitempty"`
 	Memoize               *MemoizeModel        `json:"memoize,omitempty" yaml:"memoize,omitempty"`
 	Synchronization       *SynchronizationModel `json:"synchronization,omitempty" yaml:"synchronization,omitempty"`
+	Affinity              *Affinity            `json:"affinity,omitempty" yaml:"affinity,omitempty"`
 	PodSpecPatch          string               `json:"podSpecPatch,omitempty" yaml:"podSpecPatch,omitempty"`
 	Hooks                 map[string]LifecycleHook `json:"hooks,omitempty" yaml:"hooks,omitempty"`
 	ArchiveLocation       *ArtifactLocation    `json:"archiveLocation,omitempty" yaml:"archiveLocation,omitempty"`
@@ -65,6 +66,7 @@ type InputsModel struct {
 type OutputsModel struct {
 	Parameters []ParameterModel `json:"parameters,omitempty" yaml:"parameters,omitempty"`
 	Artifacts  []ArtifactModel  `json:"artifacts,omitempty" yaml:"artifacts,omitempty"`
+	ExitCode   string           `json:"exitCode,omitempty" yaml:"exitCode,omitempty"`
 }
 
 // MetadataModel is metadata for a template.
@@ -119,12 +121,26 @@ type ContainerModel struct {
 
 // SecurityContext holds security configuration for a container.
 type SecurityContext struct {
-	RunAsUser                *int64 `json:"runAsUser,omitempty" yaml:"runAsUser,omitempty"`
-	RunAsGroup               *int64 `json:"runAsGroup,omitempty" yaml:"runAsGroup,omitempty"`
-	RunAsNonRoot             *bool  `json:"runAsNonRoot,omitempty" yaml:"runAsNonRoot,omitempty"`
-	Privileged               *bool  `json:"privileged,omitempty" yaml:"privileged,omitempty"`
-	ReadOnlyRootFilesystem   *bool  `json:"readOnlyRootFilesystem,omitempty" yaml:"readOnlyRootFilesystem,omitempty"`
-	AllowPrivilegeEscalation *bool  `json:"allowPrivilegeEscalation,omitempty" yaml:"allowPrivilegeEscalation,omitempty"`
+	RunAsUser                *int64          `json:"runAsUser,omitempty" yaml:"runAsUser,omitempty"`
+	RunAsGroup               *int64          `json:"runAsGroup,omitempty" yaml:"runAsGroup,omitempty"`
+	RunAsNonRoot             *bool           `json:"runAsNonRoot,omitempty" yaml:"runAsNonRoot,omitempty"`
+	Privileged               *bool           `json:"privileged,omitempty" yaml:"privileged,omitempty"`
+	ReadOnlyRootFilesystem   *bool           `json:"readOnlyRootFilesystem,omitempty" yaml:"readOnlyRootFilesystem,omitempty"`
+	AllowPrivilegeEscalation *bool           `json:"allowPrivilegeEscalation,omitempty" yaml:"allowPrivilegeEscalation,omitempty"`
+	SeccompProfile           *SeccompProfile `json:"seccompProfile,omitempty" yaml:"seccompProfile,omitempty"`
+	Capabilities             *Capabilities   `json:"capabilities,omitempty" yaml:"capabilities,omitempty"`
+}
+
+// SeccompProfile defines the seccomp profile for a container.
+type SeccompProfile struct {
+	Type             string `json:"type" yaml:"type"`
+	LocalhostProfile string `json:"localhostProfile,omitempty" yaml:"localhostProfile,omitempty"`
+}
+
+// Capabilities defines Linux capabilities to add or drop.
+type Capabilities struct {
+	Add  []string `json:"add,omitempty" yaml:"add,omitempty"`
+	Drop []string `json:"drop,omitempty" yaml:"drop,omitempty"`
 }
 
 // Lifecycle describes actions the management system should take in response to container lifecycle events.

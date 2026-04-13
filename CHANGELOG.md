@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-04-13
+
+### Added
+- `SeccompProfile` and `Capabilities` fields on container `SecurityContext` for rootless BuildKit and hardened workloads (#F1.1)
+- Complete `Affinity` model (`NodeAffinity`, `PodAffinity`, `PodAntiAffinity`) on `WorkflowSpec` and `TemplateModel` — mirrors k8s.io/api/core/v1 without importing the dependency (#F1.2)
+- `WorkflowStatusDetail` and `NodeStatus` types for typed parsing of workflow status including per-node exit codes (#F1.3)
+- `Shutdown` field on `WorkflowSpec` for typed workflow cancellation (#F1.3)
+- `ExitCode` field on `OutputsModel` for reading per-node exit codes (#F1.3)
+- `Status` field on `WorkflowModel` for deserializing workflow status from API/CRD responses (#F1.3)
+- `ColocateByLabel` helper for PVC ReadWriteOnce pod co-location pattern (#F2.2)
+- `ParseWorkflowStatusFromUnstructured` for extracting typed status from K8s unstructured objects (#F3.1)
+- `AllPodNodesExitedZero` for detecting false failures from daemon sidecar termination (#F3.1)
+- `StopWorkflow`, `TerminateWorkflow`, `SuspendWorkflow`, `ResumeWorkflow` client operations (#F4.1)
+
+## [0.2.1]
+
 ### Added
 - Full Argo Workflows feature coverage: all 198 upstream examples now round-trip through forge models
 - Synchronization support (mutex, semaphore, DB-backed) at workflow and template levels

@@ -90,6 +90,8 @@ type Workflow struct {
 	PodMetadata *model.MetadataModel
 	// SecurityContext holds pod-level security attributes.
 	SecurityContext *model.PodSecurityContext
+	// Affinity defines scheduling constraints for workflow pods.
+	Affinity *model.Affinity
 	// AutomountServiceAccountToken controls SA token mounting.
 	AutomountServiceAccountToken *bool
 	// WorkflowTemplateRef references a WorkflowTemplate instead of inline templates.
@@ -276,6 +278,7 @@ func (w *Workflow) Build() (model.WorkflowModel, error) {
 			PodDisruptionBudget:          w.PodDisruptionBudget,
 			PodMetadata:                  w.PodMetadata,
 			SecurityContext:              w.SecurityContext,
+			Affinity:                     w.Affinity,
 			AutomountServiceAccountToken: w.AutomountServiceAccountToken,
 			WorkflowTemplateRef:          w.WorkflowTemplateRef,
 			ArtifactGC:                   w.ArtifactGC,
