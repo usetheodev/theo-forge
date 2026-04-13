@@ -73,6 +73,8 @@ type Container struct {
 	Parallelism *int
 	// SecurityContext for the container.
 	SecurityContext *model.SecurityContext
+	// Affinity defines scheduling constraints for the template pod.
+	Affinity *model.Affinity
 	// EnvFrom sources for env vars.
 	EnvFrom []model.EnvFromSource
 	// ReadinessProbe for the container.
@@ -146,6 +148,7 @@ func (c *Container) BuildTemplate() (model.TemplateModel, error) {
 		Sidecars:              sidecars,
 		Tolerations:           c.Tolerations,
 		Parallelism:           c.Parallelism,
+		Affinity:              c.Affinity,
 	}, nil
 }
 
@@ -211,6 +214,8 @@ type Script struct {
 	Sidecars []UserContainer
 	// Tolerations for pod scheduling.
 	Tolerations []model.Toleration
+	// Affinity defines scheduling constraints for the template pod.
+	Affinity *model.Affinity
 }
 
 func (s *Script) GetName() string {
@@ -270,5 +275,6 @@ func (s *Script) BuildTemplate() (model.TemplateModel, error) {
 		Hooks:                 s.Hooks,
 		Sidecars:              sidecars,
 		Tolerations:           s.Tolerations,
+		Affinity:              s.Affinity,
 	}, nil
 }

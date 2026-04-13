@@ -229,6 +229,44 @@ func (s *WorkflowsService) LintWorkflow(ctx context.Context, b Buildable) (model
 	return s.LintWorkflowFromModel(ctx, wfModel, b.GetNamespace())
 }
 
+// --- Workflow Lifecycle Operations ---
+
+// StopWorkflow stops a running workflow (allows running steps to complete).
+func (s *WorkflowsService) StopWorkflow(ctx context.Context, name, namespace string) error {
+	if namespace == "" {
+		namespace = s.Namespace
+	}
+	_, err := s.doRequest(ctx, http.MethodPut, "/api/v1/workflows/"+namespace+"/"+name+"/stop", nil)
+	return err
+}
+
+// TerminateWorkflow terminates a running workflow immediately.
+func (s *WorkflowsService) TerminateWorkflow(ctx context.Context, name, namespace string) error {
+	if namespace == "" {
+		namespace = s.Namespace
+	}
+	_, err := s.doRequest(ctx, http.MethodPut, "/api/v1/workflows/"+namespace+"/"+name+"/terminate", nil)
+	return err
+}
+
+// SuspendWorkflow suspends a running workflow.
+func (s *WorkflowsService) SuspendWorkflow(ctx context.Context, name, namespace string) error {
+	if namespace == "" {
+		namespace = s.Namespace
+	}
+	_, err := s.doRequest(ctx, http.MethodPut, "/api/v1/workflows/"+namespace+"/"+name+"/suspend", nil)
+	return err
+}
+
+// ResumeWorkflow resumes a suspended workflow.
+func (s *WorkflowsService) ResumeWorkflow(ctx context.Context, name, namespace string) error {
+	if namespace == "" {
+		namespace = s.Namespace
+	}
+	_, err := s.doRequest(ctx, http.MethodPut, "/api/v1/workflows/"+namespace+"/"+name+"/resume", nil)
+	return err
+}
+
 // --- Info Operations ---
 
 // GetInfo returns server info.

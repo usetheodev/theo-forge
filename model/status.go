@@ -33,3 +33,29 @@ func ParseWorkflowStatus(s string) (WorkflowStatus, error) {
 		return "", fmt.Errorf("unknown workflow status %q, valid options: Pending, Running, Succeeded, Failed, Error, Terminated", s)
 	}
 }
+
+// WorkflowStatusDetail is the detailed status of a workflow, including node-level information.
+// Used for parsing the full status section from Argo Workflow CRs.
+type WorkflowStatusDetail struct {
+	Phase      WorkflowStatus        `json:"phase,omitempty" yaml:"phase,omitempty"`
+	StartedAt  string                `json:"startedAt,omitempty" yaml:"startedAt,omitempty"`
+	FinishedAt string                `json:"finishedAt,omitempty" yaml:"finishedAt,omitempty"`
+	Message    string                `json:"message,omitempty" yaml:"message,omitempty"`
+	Nodes      map[string]NodeStatus `json:"nodes,omitempty" yaml:"nodes,omitempty"`
+	Outputs    *OutputsModel         `json:"outputs,omitempty" yaml:"outputs,omitempty"`
+}
+
+// NodeStatus is the status of a single node in a workflow.
+type NodeStatus struct {
+	ID           string        `json:"id,omitempty" yaml:"id,omitempty"`
+	Name         string        `json:"name,omitempty" yaml:"name,omitempty"`
+	DisplayName  string        `json:"displayName,omitempty" yaml:"displayName,omitempty"`
+	Type         string        `json:"type,omitempty" yaml:"type,omitempty"`
+	Phase        string        `json:"phase,omitempty" yaml:"phase,omitempty"`
+	StartedAt    string        `json:"startedAt,omitempty" yaml:"startedAt,omitempty"`
+	FinishedAt   string        `json:"finishedAt,omitempty" yaml:"finishedAt,omitempty"`
+	Message      string        `json:"message,omitempty" yaml:"message,omitempty"`
+	Outputs      *OutputsModel `json:"outputs,omitempty" yaml:"outputs,omitempty"`
+	Children     []string      `json:"children,omitempty" yaml:"children,omitempty"`
+	TemplateName string        `json:"templateName,omitempty" yaml:"templateName,omitempty"`
+}

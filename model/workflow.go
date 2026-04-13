@@ -2,10 +2,11 @@ package model
 
 // WorkflowModel is the serializable Argo Workflow.
 type WorkflowModel struct {
-	APIVersion string           `json:"apiVersion" yaml:"apiVersion"`
-	Kind       string           `json:"kind" yaml:"kind"`
-	Metadata   WorkflowMetadata `json:"metadata" yaml:"metadata"`
-	Spec       WorkflowSpec     `json:"spec" yaml:"spec"`
+	APIVersion string                `json:"apiVersion" yaml:"apiVersion"`
+	Kind       string                `json:"kind" yaml:"kind"`
+	Metadata   WorkflowMetadata      `json:"metadata" yaml:"metadata"`
+	Spec       WorkflowSpec          `json:"spec" yaml:"spec"`
+	Status     *WorkflowStatusDetail `json:"status,omitempty" yaml:"status,omitempty"`
 }
 
 // WorkflowMetadata is the metadata for a workflow.
@@ -47,12 +48,14 @@ type WorkflowSpec struct {
 	PodDisruptionBudget   *PodDisruptionBudget `json:"podDisruptionBudget,omitempty" yaml:"podDisruptionBudget,omitempty"`
 	PodMetadata           *MetadataModel       `json:"podMetadata,omitempty" yaml:"podMetadata,omitempty"`
 	SecurityContext       *PodSecurityContext   `json:"securityContext,omitempty" yaml:"securityContext,omitempty"`
+	Affinity              *Affinity            `json:"affinity,omitempty" yaml:"affinity,omitempty"`
 	AutomountServiceAccountToken *bool          `json:"automountServiceAccountToken,omitempty" yaml:"automountServiceAccountToken,omitempty"`
 	WorkflowMetadata      *WorkflowLevelMetadata `json:"workflowMetadata,omitempty" yaml:"workflowMetadata,omitempty"`
 	WorkflowTemplateRef   *WorkflowTemplateRef `json:"workflowTemplateRef,omitempty" yaml:"workflowTemplateRef,omitempty"`
 	ArtifactGC            *ArtifactGCStrategy  `json:"artifactGC,omitempty" yaml:"artifactGC,omitempty"`
 	ArtifactRepositoryRef *ArtifactRepositoryRef `json:"artifactRepositoryRef,omitempty" yaml:"artifactRepositoryRef,omitempty"`
 	TemplateDefaults      *TemplateDefaults    `json:"templateDefaults,omitempty" yaml:"templateDefaults,omitempty"`
+	Shutdown              string               `json:"shutdown,omitempty" yaml:"shutdown,omitempty"`
 }
 
 // SynchronizationModel defines synchronization constraints.
