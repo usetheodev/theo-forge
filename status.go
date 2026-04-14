@@ -33,7 +33,8 @@ func AllPodNodesExitedZero(status *model.WorkflowStatusDetail) bool {
 		return false
 	}
 	podCount := 0
-	for _, node := range status.Nodes {
+	for key := range status.Nodes {
+		node := status.Nodes[key]
 		if node.Type != "Pod" {
 			continue
 		}

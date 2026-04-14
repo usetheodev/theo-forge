@@ -1,6 +1,7 @@
 package forge
 
 import (
+	"bytes"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -139,7 +140,7 @@ func TestColocateByLabel_MatchesTheoJSON(t *testing.T) {
 
 	expectedBytes, _ := json.Marshal(expected)
 	actualBytes, _ := json.Marshal(actual)
-	if string(expectedBytes) != string(actualBytes) {
+	if !bytes.Equal(expectedBytes, actualBytes) {
 		t.Errorf("ColocateByLabel output does not match Theo affinity.\nExpected: %s\nGot:      %s", expectedBytes, actualBytes)
 	}
 }
