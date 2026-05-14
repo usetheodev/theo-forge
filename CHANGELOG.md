@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-05-14
+
 ### Added
 - `DefaultPodAffinityFor(w *Workflow) *model.Affinity` helper that builds the canonical podAffinity term used to co-locate every pod of a workflow on the same node (matches on `workflows.argoproj.io/workflow` with topology key `kubernetes.io/hostname`). Uses the literal `Name` when set; falls back to the Argo template variable `{{workflow.name}}` for `GenerateName`-only workflows (#11)
 - `Workflow.DisableDefaultAffinity` opt-out field for the new default podAffinity injection (#11)
