@@ -91,7 +91,16 @@ type Workflow struct {
 	// SecurityContext holds pod-level security attributes.
 	SecurityContext *model.PodSecurityContext
 	// Affinity defines scheduling constraints for workflow pods.
+	// When nil and VolumeClaimTemplates is non-empty (and
+	// DisableDefaultAffinity is false), Build() injects a default
+	// podAffinity that co-locates all workflow pods on the same node.
+	// See DefaultPodAffinityFor.
 	Affinity *model.Affinity
+	// DisableDefaultAffinity opts out of the default podAffinity
+	// injection performed by Build() when VolumeClaimTemplates is
+	// non-empty. Has no effect when Affinity is already set or when
+	// VolumeClaimTemplates is empty.
+	DisableDefaultAffinity bool
 	// AutomountServiceAccountToken controls SA token mounting.
 	AutomountServiceAccountToken *bool
 	// WorkflowTemplateRef references a WorkflowTemplate instead of inline templates.
@@ -173,6 +182,29 @@ func (w *Workflow) buildVolumeClaimTemplates() ([]model.PVCModel, error) {
 		return nil, nil
 	}
 	return pvcs, nil
+}
+
+// resolveAffinity returns the affinity that should land on
+// WorkflowSpec.Affinity. Precedence:
+//
+//  1. User-supplied Affinity wins (no injection, full control).
+//  2. Explicit opt-out via DisableDefaultAffinity returns nil.
+//  3. No VolumeClaimTemplates means no shared RWO PVC to protect —
+//     default affinity adds nothing, so it is skipped (workflows that
+//     legitimately parallelize across nodes are unaffected).
+//  4. Otherwise inject the default podAffinity from
+//     DefaultPodAffinityFor.
+func resolveAffinity(w *Workflow) *model.Affinity {
+	if w.Affinity != nil {
+		return w.Affinity
+	}
+	if w.DisableDefaultAffinity {
+		return nil
+	}
+	if len(w.VolumeClaimTemplates) == 0 {
+		return nil
+	}
+	return DefaultPodAffinityFor(w)
 }
 
 func (w *Workflow) buildMetrics() *model.MetricsModel {
@@ -278,7 +310,7 @@ func (w *Workflow) Build() (model.WorkflowModel, error) {
 			PodDisruptionBudget:          w.PodDisruptionBudget,
 			PodMetadata:                  w.PodMetadata,
 			SecurityContext:              w.SecurityContext,
-			Affinity:                     w.Affinity,
+			Affinity:                     resolveAffinity(w),
 			AutomountServiceAccountToken: w.AutomountServiceAccountToken,
 			WorkflowTemplateRef:          w.WorkflowTemplateRef,
 			ArtifactGC:                   w.ArtifactGC,

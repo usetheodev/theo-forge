@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- `DefaultPodAffinityFor(w *Workflow) *model.Affinity` helper that builds the canonical podAffinity term used to co-locate every pod of a workflow on the same node (matches on `workflows.argoproj.io/workflow` with topology key `kubernetes.io/hostname`). Uses the literal `Name` when set; falls back to the Argo template variable `{{workflow.name}}` for `GenerateName`-only workflows (#11)
+- `Workflow.DisableDefaultAffinity` opt-out field for the new default podAffinity injection (#11)
+
+### Changed
+- `Workflow.Build()` now injects `DefaultPodAffinityFor(w)` into `WorkflowSpec.Affinity` when the workflow declares `VolumeClaimTemplates` AND `Affinity` is nil AND `DisableDefaultAffinity` is false. This eliminates the PVC ReadWriteOnce Multi-Attach race that surfaces when DAG steps share an RWO PVC and Kubernetes schedules them on different nodes. Workflows without `VolumeClaimTemplates`, with a user-supplied `Affinity`, or with `DisableDefaultAffinity: true` are unaffected (#11)
+
 ## [0.3.0] - 2026-04-13
 
 ### Added
