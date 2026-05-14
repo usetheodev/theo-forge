@@ -1702,3 +1702,69 @@ func TestExampleMultiClusterTemplateRef(t *testing.T) {
 		t.Error("YAML missing CWT reference")
 	}
 }
+
+// TestExample_DefaultAffinityForVCT demonstrates the default podAffinity
+// injection for build workflows that share a ReadWriteOnce PVC across DAG
+// steps. The user does NOT set Affinity — Build() inserts the canonical
+// term automatically because VolumeClaimTemplates is non-empty.
+func TestExample_DefaultAffinityForVCT(t *testing.T) {
+	w := &Workflow{
+		GenerateName: "build-",
+		Entrypoint:   "main",
+		VolumeClaimTemplates: []PVCVolume{{
+			BaseVolume:  BaseVolume{Name: "scratch", MountPath: "/scratch"},
+			Size:        "1Gi",
+			AccessModes: []AccessMode{ReadWriteOnce},
+		}},
+		Templates: []Templatable{
+			&Container{Name: "main", Image: "alpine:3.18"},
+		},
+	}
+
+	y, err := w.ToYAML()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Default podAffinity is injected by Build().
+	if !strings.Contains(y, "podAffinity:") {
+		t.Errorf("YAML missing podAffinity injection:\n%s", y)
+	}
+	if !strings.Contains(y, "workflows.argoproj.io/workflow") {
+		t.Errorf("YAML missing canonical Argo workflow label:\n%s", y)
+	}
+	// GenerateName-only workflows use the Argo runtime template variable.
+	if !strings.Contains(y, "{{workflow.name}}") {
+		t.Errorf("YAML missing {{workflow.name}} template var:\n%s", y)
+	}
+	if !strings.Contains(y, "topologyKey: kubernetes.io/hostname") {
+		t.Errorf("YAML missing hostname topology:\n%s", y)
+	}
+}
+
+// TestExample_OptOutDefaultAffinity demonstrates the opt-out path: a
+// workflow that legitimately parallelizes across nodes (no shared PVC
+// semantics) sets DisableDefaultAffinity to suppress the default
+// injection.
+func TestExample_OptOutDefaultAffinity(t *testing.T) {
+	w := &Workflow{
+		Name:                   "fan-out",
+		Entrypoint:             "main",
+		DisableDefaultAffinity: true,
+		VolumeClaimTemplates: []PVCVolume{{
+			BaseVolume:  BaseVolume{Name: "scratch", MountPath: "/scratch"},
+			Size:        "1Gi",
+			AccessModes: []AccessMode{ReadWriteMany},
+		}},
+		Templates: []Templatable{
+			&Container{Name: "main", Image: "alpine:3.18"},
+		},
+	}
+
+	m, err := w.Build()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Spec.Affinity != nil {
+		t.Errorf("expected nil Affinity (opt-out), got %+v", m.Spec.Affinity)
+	}
+}
