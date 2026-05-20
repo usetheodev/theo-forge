@@ -22,7 +22,9 @@ GO_TEST_COVERAGE_VERSION ?= latest
 .PHONY: help install-tools verify verify-fmt verify-vet verify-lint \
         verify-test verify-race verify-coverage verify-sec \
         verify-vuln verify-osv verify-nancy verify-build \
-        test test-race coverage coverage-html clean
+        test test-race coverage coverage-html clean \
+        e2e e2e-up e2e-up-fresh e2e-down e2e-keep \
+        bench fuzz fuzz-expr fuzz-serialize
 
 # ---------------------------------------------------------------------------
 # Help
@@ -140,4 +142,48 @@ test-race: verify-race ## Alias for verify-race.
 
 clean: ## Remove generated artifacts.
 	@rm -f coverage.out coverage.html sbom.cdx.json
+	@rm -rf .e2e
 	@echo "==> cleaned"
+
+# ---------------------------------------------------------------------------
+# E2E — kind cluster + Argo Workflows install (gold-standard L3 fidelity).
+# Scripts live in ./scripts; pinned versions in scripts/e2e-versions.sh.
+# Tests live in ./e2e (build tag `e2e`) and are SKIPPED by `make verify`.
+# ---------------------------------------------------------------------------
+
+e2e-up: ## Bootstrap kind cluster + Argo Workflows. Idempotent. Use --fresh to recreate.
+	@./scripts/e2e-up.sh
+
+e2e-up-fresh: ## Tear down + recreate kind cluster from scratch.
+	@./scripts/e2e-up.sh --fresh
+
+e2e-down: ## Destroy the kind cluster and clean .e2e/.
+	@./scripts/e2e-down.sh
+
+e2e: e2e-up ## Bootstrap env and run E2E suite, then teardown (e2e-keep skips teardown).
+	@set -e; \
+	  trap './scripts/e2e-down.sh' EXIT; \
+	  KUBECONFIG="$$(pwd)/.e2e/kubeconfig" \
+	  ARGO_TOKEN_FILE="$$(pwd)/.e2e/argo-token" \
+	    go test -count=1 -tags=e2e -timeout=20m ./e2e/...
+
+e2e-keep: e2e-up ## Run E2E suite but KEEP the cluster running for debugging.
+	@KUBECONFIG="$$(pwd)/.e2e/kubeconfig" \
+	  ARGO_TOKEN_FILE="$$(pwd)/.e2e/argo-token" \
+	    go test -count=1 -tags=e2e -v -timeout=20m ./e2e/...
+
+# ---------------------------------------------------------------------------
+# Benchmarks + fuzz — separate from `verify` (long-running, not part of PR gate).
+# ---------------------------------------------------------------------------
+
+bench: ## Run benchmarks (Build/ToYAML/RoundTrip baselines).
+	@go test -bench=. -benchmem -run='^$$' -count=3 -timeout=10m ./...
+
+fuzz-expr: ## Fuzz expr.C + Contains (5s each; raise for longer runs).
+	@go test -run='^$$' -fuzz='FuzzExprC$$' -fuzztime=5s ./expr/...
+	@go test -run='^$$' -fuzz=FuzzExprContains -fuzztime=5s ./expr/...
+
+fuzz-serialize: ## Fuzz serialize.containedJoin (5s budget).
+	@go test -run='^$$' -fuzz=FuzzContainedJoin -fuzztime=5s ./serialize/...
+
+fuzz: fuzz-expr fuzz-serialize ## Run all fuzz targets with default budget.

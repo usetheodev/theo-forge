@@ -1,0 +1,30 @@
+# Provenance of the example Argo Workflow YAMLs in this directory.
+#
+# Extra-3 — pin the upstream version so reviewers know which Argo schema
+# these round-trip tests protect against. Bump when re-syncing.
+
+ARGO_VERSION=v3.5.10
+ARGO_REPO=https://github.com/argoproj/argo-workflows
+ARGO_EXAMPLES_DIR=examples
+LAST_SYNCED=2026-05-20
+
+# Upstream source for each YAML below:
+#   https://github.com/argoproj/argo-workflows/blob/v3.5.10/examples/<basename>
+#
+# Local additions (NOT from upstream) — produced by Hera or by hand to
+# exercise theo-forge-specific code paths. Listed so re-sync scripts
+# do not accidentally overwrite them.
+LOCAL_ADDITIONS=
+  # (none yet)
+
+# How to re-sync (do NOT run blindly — manual review required):
+#
+#   scripts/update-examples.sh v3.6.0
+#
+# The script:
+#   1. clones argoproj/argo-workflows at the target tag,
+#   2. diffs every YAML in examples/ against ours,
+#   3. flags removed examples + new examples + drift,
+#   4. asks the human to approve each change.
+#
+# Bumping ARGO_VERSION without re-running the round-trip suite is a bug.
