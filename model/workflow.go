@@ -20,42 +20,42 @@ type WorkflowMetadata struct {
 
 // WorkflowSpec is the spec for a workflow.
 type WorkflowSpec struct {
-	Entrypoint            string               `json:"entrypoint,omitempty" yaml:"entrypoint,omitempty"`
-	Templates             []TemplateModel      `json:"templates,omitempty" yaml:"templates,omitempty"`
-	Arguments             *ArgumentsModel      `json:"arguments,omitempty" yaml:"arguments,omitempty"`
-	Volumes               []VolumeModel        `json:"volumes,omitempty" yaml:"volumes,omitempty"`
-	VolumeClaimTemplates  []PVCModel           `json:"volumeClaimTemplates,omitempty" yaml:"volumeClaimTemplates,omitempty"`
-	ServiceAccountName    string               `json:"serviceAccountName,omitempty" yaml:"serviceAccountName,omitempty"`
-	Parallelism           *int                 `json:"parallelism,omitempty" yaml:"parallelism,omitempty"`
-	ActiveDeadlineSeconds *int                 `json:"activeDeadlineSeconds,omitempty" yaml:"activeDeadlineSeconds,omitempty"`
-	NodeSelector          map[string]string    `json:"nodeSelector,omitempty" yaml:"nodeSelector,omitempty"`
-	Tolerations           []Toleration         `json:"tolerations,omitempty" yaml:"tolerations,omitempty"`
-	Suspend               *bool                `json:"suspend,omitempty" yaml:"suspend,omitempty"`
-	HostNetwork           *bool                `json:"hostNetwork,omitempty" yaml:"hostNetwork,omitempty"`
-	TTLStrategy           *TTLStrategy         `json:"ttlStrategy,omitempty" yaml:"ttlStrategy,omitempty"`
-	PodGC                 *PodGC               `json:"podGC,omitempty" yaml:"podGC,omitempty"`
-	Priority              *int                 `json:"priority,omitempty" yaml:"priority,omitempty"`
-	OnExit                string               `json:"onExit,omitempty" yaml:"onExit,omitempty"`
-	Metrics               *MetricsModel        `json:"metrics,omitempty" yaml:"metrics,omitempty"`
-	ArchiveLogs           *bool                `json:"archiveLogs,omitempty" yaml:"archiveLogs,omitempty"`
-	RetryStrategy         *RetryStrategyModel  `json:"retryStrategy,omitempty" yaml:"retryStrategy,omitempty"`
-	ImagePullSecrets      []ImagePullSecret    `json:"imagePullSecrets,omitempty" yaml:"imagePullSecrets,omitempty"`
-	PodSpecPatch          string               `json:"podSpecPatch,omitempty" yaml:"podSpecPatch,omitempty"`
-	Synchronization       *SynchronizationModel `json:"synchronization,omitempty" yaml:"synchronization,omitempty"`
-	Hooks                 map[string]LifecycleHook `json:"hooks,omitempty" yaml:"hooks,omitempty"`
-	DNSConfig             *DNSConfig           `json:"dnsConfig,omitempty" yaml:"dnsConfig,omitempty"`
-	DNSPolicy             string               `json:"dnsPolicy,omitempty" yaml:"dnsPolicy,omitempty"`
-	PodDisruptionBudget   *PodDisruptionBudget `json:"podDisruptionBudget,omitempty" yaml:"podDisruptionBudget,omitempty"`
-	PodMetadata           *MetadataModel       `json:"podMetadata,omitempty" yaml:"podMetadata,omitempty"`
-	SecurityContext       *PodSecurityContext   `json:"securityContext,omitempty" yaml:"securityContext,omitempty"`
-	Affinity              *Affinity            `json:"affinity,omitempty" yaml:"affinity,omitempty"`
-	AutomountServiceAccountToken *bool          `json:"automountServiceAccountToken,omitempty" yaml:"automountServiceAccountToken,omitempty"`
-	WorkflowMetadata      *WorkflowLevelMetadata `json:"workflowMetadata,omitempty" yaml:"workflowMetadata,omitempty"`
-	WorkflowTemplateRef   *WorkflowTemplateRef `json:"workflowTemplateRef,omitempty" yaml:"workflowTemplateRef,omitempty"`
-	ArtifactGC            *ArtifactGCStrategy  `json:"artifactGC,omitempty" yaml:"artifactGC,omitempty"`
-	ArtifactRepositoryRef *ArtifactRepositoryRef `json:"artifactRepositoryRef,omitempty" yaml:"artifactRepositoryRef,omitempty"`
-	TemplateDefaults      *TemplateDefaults    `json:"templateDefaults,omitempty" yaml:"templateDefaults,omitempty"`
-	Shutdown              string               `json:"shutdown,omitempty" yaml:"shutdown,omitempty"`
+	Entrypoint                   string                   `json:"entrypoint,omitempty" yaml:"entrypoint,omitempty"`
+	Templates                    []TemplateModel          `json:"templates,omitempty" yaml:"templates,omitempty"`
+	Arguments                    *ArgumentsModel          `json:"arguments,omitempty" yaml:"arguments,omitempty"`
+	Volumes                      []VolumeModel            `json:"volumes,omitempty" yaml:"volumes,omitempty"`
+	VolumeClaimTemplates         []PVCModel               `json:"volumeClaimTemplates,omitempty" yaml:"volumeClaimTemplates,omitempty"`
+	ServiceAccountName           string                   `json:"serviceAccountName,omitempty" yaml:"serviceAccountName,omitempty"`
+	Parallelism                  *int                     `json:"parallelism,omitempty" yaml:"parallelism,omitempty"`
+	ActiveDeadlineSeconds        *int                     `json:"activeDeadlineSeconds,omitempty" yaml:"activeDeadlineSeconds,omitempty"`
+	NodeSelector                 map[string]string        `json:"nodeSelector,omitempty" yaml:"nodeSelector,omitempty"`
+	Tolerations                  []Toleration             `json:"tolerations,omitempty" yaml:"tolerations,omitempty"`
+	Suspend                      *bool                    `json:"suspend,omitempty" yaml:"suspend,omitempty"`
+	HostNetwork                  *bool                    `json:"hostNetwork,omitempty" yaml:"hostNetwork,omitempty"`
+	TTLStrategy                  *TTLStrategy             `json:"ttlStrategy,omitempty" yaml:"ttlStrategy,omitempty"`
+	PodGC                        *PodGC                   `json:"podGC,omitempty" yaml:"podGC,omitempty"`
+	Priority                     *int                     `json:"priority,omitempty" yaml:"priority,omitempty"`
+	OnExit                       string                   `json:"onExit,omitempty" yaml:"onExit,omitempty"`
+	Metrics                      *MetricsModel            `json:"metrics,omitempty" yaml:"metrics,omitempty"`
+	ArchiveLogs                  *bool                    `json:"archiveLogs,omitempty" yaml:"archiveLogs,omitempty"`
+	RetryStrategy                *RetryStrategyModel      `json:"retryStrategy,omitempty" yaml:"retryStrategy,omitempty"`
+	ImagePullSecrets             []ImagePullSecret        `json:"imagePullSecrets,omitempty" yaml:"imagePullSecrets,omitempty"`
+	PodSpecPatch                 string                   `json:"podSpecPatch,omitempty" yaml:"podSpecPatch,omitempty"`
+	Synchronization              *SynchronizationModel    `json:"synchronization,omitempty" yaml:"synchronization,omitempty"`
+	Hooks                        map[string]LifecycleHook `json:"hooks,omitempty" yaml:"hooks,omitempty"`
+	DNSConfig                    *DNSConfig               `json:"dnsConfig,omitempty" yaml:"dnsConfig,omitempty"`
+	DNSPolicy                    string                   `json:"dnsPolicy,omitempty" yaml:"dnsPolicy,omitempty"`
+	PodDisruptionBudget          *PodDisruptionBudget     `json:"podDisruptionBudget,omitempty" yaml:"podDisruptionBudget,omitempty"`
+	PodMetadata                  *MetadataModel           `json:"podMetadata,omitempty" yaml:"podMetadata,omitempty"`
+	SecurityContext              *PodSecurityContext      `json:"securityContext,omitempty" yaml:"securityContext,omitempty"`
+	Affinity                     *Affinity                `json:"affinity,omitempty" yaml:"affinity,omitempty"`
+	AutomountServiceAccountToken *bool                    `json:"automountServiceAccountToken,omitempty" yaml:"automountServiceAccountToken,omitempty"`
+	WorkflowMetadata             *WorkflowLevelMetadata   `json:"workflowMetadata,omitempty" yaml:"workflowMetadata,omitempty"`
+	WorkflowTemplateRef          *WorkflowTemplateRef     `json:"workflowTemplateRef,omitempty" yaml:"workflowTemplateRef,omitempty"`
+	ArtifactGC                   *ArtifactGCStrategy      `json:"artifactGC,omitempty" yaml:"artifactGC,omitempty"`
+	ArtifactRepositoryRef        *ArtifactRepositoryRef   `json:"artifactRepositoryRef,omitempty" yaml:"artifactRepositoryRef,omitempty"`
+	TemplateDefaults             *TemplateDefaults        `json:"templateDefaults,omitempty" yaml:"templateDefaults,omitempty"`
+	Shutdown                     string                   `json:"shutdown,omitempty" yaml:"shutdown,omitempty"`
 }
 
 // SynchronizationModel defines synchronization constraints.
@@ -64,7 +64,7 @@ type SynchronizationModel struct {
 	Mutex     *MutexModel     `json:"mutex,omitempty" yaml:"mutex,omitempty"`
 	Semaphore *SemaphoreModel `json:"semaphore,omitempty" yaml:"semaphore,omitempty"`
 	// New plural fields (Argo Workflows >= 3.6)
-	Mutexes    []MutexModel    `json:"mutexes,omitempty" yaml:"mutexes,omitempty"`
+	Mutexes    []MutexModel     `json:"mutexes,omitempty" yaml:"mutexes,omitempty"`
 	Semaphores []SemaphoreModel `json:"semaphores,omitempty" yaml:"semaphores,omitempty"`
 }
 
@@ -77,8 +77,8 @@ type MutexModel struct {
 
 // SemaphoreModel is a counting semaphore.
 type SemaphoreModel struct {
-	ConfigMapKeyRef *ConfigMapKeyRef    `json:"configMapKeyRef,omitempty" yaml:"configMapKeyRef,omitempty"`
-	Database        *SemaphoreDBRef     `json:"database,omitempty" yaml:"database,omitempty"`
+	ConfigMapKeyRef *ConfigMapKeyRef `json:"configMapKeyRef,omitempty" yaml:"configMapKeyRef,omitempty"`
+	Database        *SemaphoreDBRef  `json:"database,omitempty" yaml:"database,omitempty"`
 }
 
 // SemaphoreDBRef references a database-backed semaphore.
@@ -94,10 +94,10 @@ type ConfigMapKeyRef struct {
 
 // LifecycleHook defines a hook that runs at a lifecycle event.
 type LifecycleHook struct {
-	Template   string          `json:"template,omitempty" yaml:"template,omitempty"`
-	TemplateRef *TemplateRef   `json:"templateRef,omitempty" yaml:"templateRef,omitempty"`
-	Arguments  *ArgumentsModel `json:"arguments,omitempty" yaml:"arguments,omitempty"`
-	Expression string          `json:"expression,omitempty" yaml:"expression,omitempty"`
+	Template    string          `json:"template,omitempty" yaml:"template,omitempty"`
+	TemplateRef *TemplateRef    `json:"templateRef,omitempty" yaml:"templateRef,omitempty"`
+	Arguments   *ArgumentsModel `json:"arguments,omitempty" yaml:"arguments,omitempty"`
+	Expression  string          `json:"expression,omitempty" yaml:"expression,omitempty"`
 }
 
 // DNSConfig specifies the DNS parameters of a pod.
@@ -114,30 +114,35 @@ type DNSConfigOption struct {
 }
 
 // PodDisruptionBudget configures the PDB for workflow pods.
+//
+// Use [IntOrStringFromInt]/[IntOrStringFromString] to construct values.
+// (T4.3 / ADR-002 — replaces former `interface{}` fields with the typed
+// IntOrString union so float/bool/struct values can no longer serialize
+// as malformed YAML.)
 type PodDisruptionBudget struct {
-	MinAvailable   interface{} `json:"minAvailable,omitempty" yaml:"minAvailable,omitempty"`
-	MaxUnavailable interface{} `json:"maxUnavailable,omitempty" yaml:"maxUnavailable,omitempty"`
+	MinAvailable   *IntOrString `json:"minAvailable,omitempty" yaml:"minAvailable,omitempty"`
+	MaxUnavailable *IntOrString `json:"maxUnavailable,omitempty" yaml:"maxUnavailable,omitempty"`
 }
 
 // PodSecurityContext holds pod-level security attributes.
 type PodSecurityContext struct {
-	RunAsUser          *int64 `json:"runAsUser,omitempty" yaml:"runAsUser,omitempty"`
-	RunAsGroup         *int64 `json:"runAsGroup,omitempty" yaml:"runAsGroup,omitempty"`
-	RunAsNonRoot       *bool  `json:"runAsNonRoot,omitempty" yaml:"runAsNonRoot,omitempty"`
-	FSGroup            *int64 `json:"fsGroup,omitempty" yaml:"fsGroup,omitempty"`
+	RunAsUser          *int64  `json:"runAsUser,omitempty" yaml:"runAsUser,omitempty"`
+	RunAsGroup         *int64  `json:"runAsGroup,omitempty" yaml:"runAsGroup,omitempty"`
+	RunAsNonRoot       *bool   `json:"runAsNonRoot,omitempty" yaml:"runAsNonRoot,omitempty"`
+	FSGroup            *int64  `json:"fsGroup,omitempty" yaml:"fsGroup,omitempty"`
 	SupplementalGroups []int64 `json:"supplementalGroups,omitempty" yaml:"supplementalGroups,omitempty"`
 }
 
 // WorkflowTemplateRef references a WorkflowTemplate by name.
 type WorkflowTemplateRef struct {
-	Name            string `json:"name" yaml:"name"`
-	ClusterScope    bool   `json:"clusterScope,omitempty" yaml:"clusterScope,omitempty"`
+	Name         string `json:"name" yaml:"name"`
+	ClusterScope bool   `json:"clusterScope,omitempty" yaml:"clusterScope,omitempty"`
 }
 
 // WorkflowLevelMetadata defines metadata applied to workflow pods at the spec level.
 type WorkflowLevelMetadata struct {
-	Labels      map[string]string       `json:"labels,omitempty" yaml:"labels,omitempty"`
-	Annotations map[string]string       `json:"annotations,omitempty" yaml:"annotations,omitempty"`
+	Labels      map[string]string         `json:"labels,omitempty" yaml:"labels,omitempty"`
+	Annotations map[string]string         `json:"annotations,omitempty" yaml:"annotations,omitempty"`
 	LabelsFrom  map[string]LabelValueFrom `json:"labelsFrom,omitempty" yaml:"labelsFrom,omitempty"`
 }
 
@@ -148,10 +153,10 @@ type LabelValueFrom struct {
 
 // ArtifactGCStrategy defines artifact garbage collection at the workflow level.
 type ArtifactGCStrategy struct {
-	Strategy              string              `json:"strategy,omitempty" yaml:"strategy,omitempty"`
-	ServiceAccountName    string              `json:"serviceAccountName,omitempty" yaml:"serviceAccountName,omitempty"`
-	PodSpecPatch          string              `json:"podSpecPatch,omitempty" yaml:"podSpecPatch,omitempty"`
-	ForceFinalizerRemoval bool                `json:"forceFinalizerRemoval,omitempty" yaml:"forceFinalizerRemoval,omitempty"`
+	Strategy              string `json:"strategy,omitempty" yaml:"strategy,omitempty"`
+	ServiceAccountName    string `json:"serviceAccountName,omitempty" yaml:"serviceAccountName,omitempty"`
+	PodSpecPatch          string `json:"podSpecPatch,omitempty" yaml:"podSpecPatch,omitempty"`
+	ForceFinalizerRemoval bool   `json:"forceFinalizerRemoval,omitempty" yaml:"forceFinalizerRemoval,omitempty"`
 }
 
 // ArtifactRepositoryRef references an artifact repository config.
@@ -162,11 +167,11 @@ type ArtifactRepositoryRef struct {
 
 // TemplateDefaults defines default values applied to all templates.
 type TemplateDefaults struct {
-	Timeout               string               `json:"timeout,omitempty" yaml:"timeout,omitempty"`
-	RetryStrategy         *RetryStrategyModel  `json:"retryStrategy,omitempty" yaml:"retryStrategy,omitempty"`
-	ActiveDeadlineSeconds *int                 `json:"activeDeadlineSeconds,omitempty" yaml:"activeDeadlineSeconds,omitempty"`
-	ServiceAccountName    string               `json:"serviceAccountName,omitempty" yaml:"serviceAccountName,omitempty"`
-	Metadata              *MetadataModel       `json:"metadata,omitempty" yaml:"metadata,omitempty"`
+	Timeout               string              `json:"timeout,omitempty" yaml:"timeout,omitempty"`
+	RetryStrategy         *RetryStrategyModel `json:"retryStrategy,omitempty" yaml:"retryStrategy,omitempty"`
+	ActiveDeadlineSeconds *int                `json:"activeDeadlineSeconds,omitempty" yaml:"activeDeadlineSeconds,omitempty"`
+	ServiceAccountName    string              `json:"serviceAccountName,omitempty" yaml:"serviceAccountName,omitempty"`
+	Metadata              *MetadataModel      `json:"metadata,omitempty" yaml:"metadata,omitempty"`
 }
 
 // TTLStrategy defines how long the workflow CRD persists after completion.
@@ -178,14 +183,14 @@ type TTLStrategy struct {
 
 // PodGC defines the pod garbage collection strategy.
 type PodGC struct {
-	Strategy        string               `json:"strategy" yaml:"strategy"`
-	LabelSelector   *LabelSelector       `json:"labelSelector,omitempty" yaml:"labelSelector,omitempty"`
-	DeleteDelayDuration string           `json:"deleteDelayDuration,omitempty" yaml:"deleteDelayDuration,omitempty"`
+	Strategy            string         `json:"strategy" yaml:"strategy"`
+	LabelSelector       *LabelSelector `json:"labelSelector,omitempty" yaml:"labelSelector,omitempty"`
+	DeleteDelayDuration string         `json:"deleteDelayDuration,omitempty" yaml:"deleteDelayDuration,omitempty"`
 }
 
 // LabelSelector is a K8s label selector.
 type LabelSelector struct {
-	MatchLabels      map[string]string        `json:"matchLabels,omitempty" yaml:"matchLabels,omitempty"`
+	MatchLabels      map[string]string          `json:"matchLabels,omitempty" yaml:"matchLabels,omitempty"`
 	MatchExpressions []LabelSelectorRequirement `json:"matchExpressions,omitempty" yaml:"matchExpressions,omitempty"`
 }
 

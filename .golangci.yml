@@ -1,32 +1,262 @@
+# golangci-lint v2 — strict quality-gate configuration for theo-forge.
+#
+# Authority:
+#   - .claude/rules/golang-conventions.md §Forbidden patterns
+#   - .claude/rules/clean-code.md §Function size + cyclomatic complexity
+#   - docs/QUALITY-GATES.md
+#
+# Philosophy (per pesquisa 2026):
+#   - Strict default linter set (opt-out, not opt-in).
+#   - Zero suppression by default (max-issues-per-linter: 0, max-same-issues: 0).
+#   - All exclusions are EXPLICIT, named, and rationale-documented inline below.
+#
+# Pinned in CI to v1.61.0 today (T5.8). When migrating to v2.x runtime, run
+# `golangci-lint migrate` and re-test against this config.
+
 version: "2"
 
 run:
   timeout: 5m
+  tests: true
+  modules-download-mode: readonly
 
 linters:
+  default: standard
+
   enable:
+    # --- Correctness / Bugs ---
     - errcheck
-    - govet
-    - ineffassign
-    - staticcheck
-    - unused
+    - errorlint
+    - bodyclose
+    - copyloopvar
+    - contextcheck
+    - durationcheck
+    - exhaustive
+    - nilerr
+    - nilnil
+    - reassign
+    - tparallel
+
+    # --- Security ---
+    - gosec
+
+    # --- Complexity (per pesquisa + .claude/rules) ---
+    - gocyclo
+    - gocognit
+    - funlen
+    - nestif
+    - cyclop
+
+    # --- Style / Maintainability ---
     - gocritic
+    - revive
     - misspell
     - unconvert
     - unparam
-  exclusions:
-    rules:
-      - path: _test\.go
-        linters:
-          - errcheck
-          - unparam
-    paths:
-      - testdata
+    - prealloc
+    - godot                # godoc comments end with a period
+    - whitespace
+
+    # --- Module hygiene ---
+    - depguard
+    - gomoddirectives
+    - importas
 
   settings:
+    # Cyclomatic complexity: 12 (Go-pragmatic per community survey).
+    # Rationale: Go's explicit error handling inflates ciclomática vs. languages
+    # with exceptions; McCabe's classic 10 is too tight without making code worse.
+    gocyclo:
+      min-complexity: 12
+
+    # Cognitive complexity: 20. Better signal for "code that's hard to read"
+    # because nesting is weighted; rewards Go's flat control flow.
+    gocognit:
+      min-complexity: 20
+
+    funlen:
+      lines: 80
+      statements: 50
+      ignore-comments: true
+
+    nestif:
+      min-complexity: 4
+
+    cyclop:
+      max-complexity: 12
+      package-average: 8.0
+
     gocritic:
       enabled-tags:
         - diagnostic
         - performance
+        - style
       disabled-checks:
         - hugeParam
+        - paramTypeCombine
+        - whyNoLint
+
+    revive:
+      severity: warning
+      rules:
+        - name: exported
+        - name: error-return
+        - name: error-naming
+        - name: var-naming
+        - name: package-comments
+        - name: indent-error-flow
+        - name: range
+        - name: receiver-naming
+        - name: unreachable-code
+        - name: redefines-builtin-id
+        - name: superfluous-else
+
+    errcheck:
+      exclude-functions:
+        - (io.Closer).Close
+        - fmt.Print
+        - fmt.Println
+        - fmt.Printf
+
+    gosec:
+      excludes:
+        - G104    # errors unhandled — covered more precisely by errcheck
+      severity: medium
+      confidence: medium
+
+    depguard:
+      rules:
+        no-legacy-rand:
+          deny:
+            - pkg: "math/rand$"
+              desc: "Use math/rand/v2 (Go 1.22+). See https://go.dev/blog/randv2"
+        no-legacy-log:
+          deny:
+            - pkg: "log$"
+              desc: "Use log/slog (Go 1.21+). See https://go.dev/blog/slog"
+        no-k8s-deps:
+          deny:
+            - pkg: "k8s.io/api"
+              desc: "theo-forge mirrors the Argo CRD schema in model/ to avoid the k8s.io transitive tree (~50 MiB). See .claude/rules/dependencies.md."
+            - pkg: "k8s.io/apimachinery"
+              desc: "Same as k8s.io/api — local mirroring in model/."
+            - pkg: "k8s.io/client-go"
+              desc: "Use the local client/ package instead."
+
+    importas:
+      alias:
+        - pkg: github.com/usetheodev/theo-forge
+          alias: forge
+        - pkg: github.com/usetheodev/theo-forge/model
+          alias: model
+
+    exhaustive:
+      default-signifies-exhaustive: true
+
+  exclusions:
+    # TEMP-DISABLED: warn-unused fires on broad path-based excludes (testdata,
+    # review-output, .claude) that don't always have matching files in a given
+    # run. Enable once we have a stable set of test fixtures that exercise
+    # every excluded path. Not a security/correctness gate; pure hygiene.
+    warn-unused: false
+
+    rules:
+      # Tests: relaxed funlen + errcheck (table-driven tests are long;
+      # test setup often ignores cleanup errors).
+      - path: _test\.go
+        linters:
+          - funlen
+          - errcheck
+          - gosec
+          - dupl
+          - gocyclo
+          - gocognit
+          - cyclop
+          - nestif
+          - revive
+
+      # Tests intentionally call fmt.Sprintf("%v", obj) to test the Stringer
+      # behavior — gocritic flags this as redundant but we explicitly want
+      # to exercise the %v formatter path (not the .String() shortcut).
+      - text: "redundantSprint"
+        linters:
+          - gocritic
+
+      # gocritic nestingReduce is a style suggestion ("invert if; continue"); test
+      # body is more readable kept as-is. We honor it in production code.
+      - text: "nestingReduce"
+        path: _test\.go
+        linters:
+          - gocritic
+
+      # Local `model` variable name in test functions shadows the model import.
+      # Acceptable in test scope; tracked in v0.6.0 cleanup pass.
+      - text: "shadow of imported"
+        path: _test\.go
+        linters:
+          - gocritic
+
+      # Tests intentionally call `expr.Eq()` (deprecated) to lock backward-compat.
+      - text: "SA1019.*e\\.Eq is deprecated"
+        path: _test\.go
+        linters:
+          - staticcheck
+
+      # `return nil, nil` for "no value, no error" is an established Go pattern
+      # for buildArguments/buildVolumes (caller distinguishes via len(result)).
+      # nilnil is correct in general but here the intent is documented.
+      - text: "return both a `nil` error"
+        linters:
+          - nilnil
+
+      # examples_test.go is a documentation-style fixture file with many
+      # standalone Example* functions; complexity rules don't fit.
+      - path: examples_test\.go$
+        linters:
+          - funlen
+          - gocyclo
+          - gocognit
+          - cyclop
+          - lll
+
+      # Helpers consciously deferred to v0.6.0 (T4.2 helpers.go SRP split).
+      # Documented as known debt in size-allowlist.txt.
+      - path: helpers\.go$
+        linters:
+          - funlen
+          - cyclop
+          - gocognit
+
+      # docs/readme_examples_test.go intentionally mirrors README prose;
+      # imports are user-facing not lint-style.
+      - path: docs/readme_examples_test\.go$
+        linters:
+          - revive
+          - funlen
+
+    paths:
+      - testdata
+      - review-output
+      - \.claude
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/usetheodev/theo-forge
+    gofmt:
+      simplify: true
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+output:
+  formats:
+    text:
+      print-linter-name: true
+      print-issued-lines: true
+  sort-results: true

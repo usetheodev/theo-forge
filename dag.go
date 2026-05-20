@@ -9,6 +9,7 @@ import (
 // Operator defines how task dependencies are combined.
 type Operator string
 
+// Operator literals.
 const (
 	OperatorAnd Operator = "&&"
 	OperatorOr  Operator = "||"
@@ -17,6 +18,7 @@ const (
 // TaskResult represents the result of a task for conditional dependencies.
 type TaskResult string
 
+// TaskResult literals (Argo task lifecycle states).
 const (
 	TaskFailed       TaskResult = "Failed"
 	TaskSucceeded    TaskResult = "Succeeded"
@@ -82,13 +84,54 @@ func (t *Task) GetOutputArtifact(artifactName string) string {
 
 // Then sets this task as a dependency of the other task.
 // Returns the other task for chaining.
+//
+// (T3.9 / completeness-h4-then-precedence) When other.Depends already contains
+// an OR operator (||), the existing expression is wrapped in parentheses
+// before the AND is appended. This preserves operator precedence so that
+//
+//	A.Then(B); X.Or(Y) into B.Depends           // existing: "X || Y"
+//	A.Then(B)                                    // append A
+//
+// produces "(X || Y) && A" — NOT the ambiguous "X || Y && A" which would
+// be parsed as "X || (Y && A)" by Argo's expression engine.
 func (t *Task) Then(other *Task) *Task {
 	if other.Depends == "" {
 		other.Depends = t.Name
-	} else {
-		other.Depends = other.Depends + " " + string(OperatorAnd) + " " + t.Name
+		return other
 	}
+	prev := other.Depends
+	if needsParens(prev) {
+		prev = "(" + prev + ")"
+	}
+	other.Depends = prev + " " + string(OperatorAnd) + " " + t.Name
 	return other
+}
+
+// needsParens reports whether a Depends expression contains an OR operator
+// at its top level and therefore must be parenthesized before further AND
+// composition.
+func needsParens(expr string) bool {
+	return containsTopLevelOr(expr)
+}
+
+// containsTopLevelOr returns true if expr contains "||" outside any parens.
+func containsTopLevelOr(expr string) bool {
+	depth := 0
+	for i := 0; i < len(expr); i++ {
+		switch expr[i] {
+		case '(':
+			depth++
+		case ')':
+			if depth > 0 {
+				depth--
+			}
+		case '|':
+			if depth == 0 && i+1 < len(expr) && expr[i+1] == '|' {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // Or creates an OR dependency expression between tasks.
@@ -115,9 +158,14 @@ func (t *Task) OnError(other *Task) *Task {
 }
 
 // BuildDAGTask builds the serializable DAG task model.
+// Returns model.ErrTemplateAmbiguous when more than one of Template/TemplateRef/Inline
+// is set; model.ErrTemplateMissing when none is set. (T3.3 / code-p4-template-ref-mutual-exclusion).
 func (t *Task) BuildDAGTask() (model.DAGTaskModel, error) {
 	if t.Name == "" {
 		return model.DAGTaskModel{}, fmt.Errorf("task name cannot be empty")
+	}
+	if err := validateTemplateReference(t.Template, t.TemplateRef, t.Inline, "task "+t.Name); err != nil {
+		return model.DAGTaskModel{}, err
 	}
 
 	var args *model.ArgumentsModel
@@ -211,6 +259,7 @@ func (d *DAG) AddTasks(tasks ...*Task) error {
 	return nil
 }
 
+// GetName is the method.
 func (d *DAG) GetName() string {
 	return d.Name
 }

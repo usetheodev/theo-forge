@@ -313,8 +313,8 @@ func TestServiceGetInfo(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info["managedNamespace"] != "argo" {
-		t.Errorf("managedNamespace = %v", info["managedNamespace"])
+	if info.ManagedNamespace != "argo" {
+		t.Errorf("managedNamespace = %q", info.ManagedNamespace)
 	}
 }
 

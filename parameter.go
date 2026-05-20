@@ -2,9 +2,16 @@ package forge
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/usetheodev/theo-forge/model"
 )
+
+// strconvFormatFloat is a thin wrapper to keep the float→string conversion
+// readable inside the Backoff.Factor type switch.
+func strconvFormatFloat(f float64) string {
+	return strconv.FormatFloat(f, 'g', -1, 64)
+}
 
 // Parameter represents a workflow parameter with name, value, default, and enum.
 type Parameter struct {
@@ -106,11 +113,24 @@ func (r RetryStrategy) Build() model.RetryStrategyModel {
 	var backoff *model.Backoff
 	if r.Backoff != nil {
 		b := *r.Backoff
-		// Normalize factor to string for Argo compatibility
-		if factor, ok := b.Factor.(*int); ok && factor != nil {
-			b.Factor = fmt.Sprintf("%d", *factor)
-		} else if factor, ok := b.Factor.(int); ok {
+		// Normalize factor to string for Argo compatibility.
+		// Argo accepts int (most common) or "1.5"-style strings. We accept
+		// int / *int / float64 / *float64 (T3.11 / code-p4-backoff-factor-partial-normalization)
+		// and emit a string. Other types pass through unchanged (existing
+		// "string" callers continue to work).
+		switch factor := b.Factor.(type) {
+		case *int:
+			if factor != nil {
+				b.Factor = fmt.Sprintf("%d", *factor)
+			}
+		case int:
 			b.Factor = fmt.Sprintf("%d", factor)
+		case *float64:
+			if factor != nil {
+				b.Factor = strconvFormatFloat(*factor)
+			}
+		case float64:
+			b.Factor = strconvFormatFloat(factor)
 		}
 		backoff = &b
 	}

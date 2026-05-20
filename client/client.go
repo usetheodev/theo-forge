@@ -3,6 +3,7 @@ package client
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,6 +13,16 @@ import (
 
 	"github.com/usetheodev/theo-forge/model"
 )
+
+// defaultClientTimeout applies to HTTP requests when callers do not
+// supply their own *http.Client via the HTTPClient field.
+const defaultClientTimeout = 30 * time.Second
+
+// maxResponseBodyBytes is the maximum response body the client will read.
+// Bounded read prevents memory exhaustion via malicious or buggy server
+// responses (T2.5 / SEC-005). 32 MiB is comfortably above typical Argo
+// responses and below realistic OOM thresholds.
+const maxResponseBodyBytes = 32 << 20
 
 // HTTPClient is an interface for HTTP requests (allows mocking).
 type HTTPClient interface {
@@ -36,17 +47,55 @@ type WorkflowsService struct {
 	VerifySSL bool
 	// HTTPClient is the underlying HTTP client (injectable for testing).
 	HTTPClient HTTPClient
+	// Logger receives structured Debug/Error events. Nil falls back to
+	// NoopLogger (silent). NEVER logs the Authorization header or request
+	// body. (T6.1 / ADR-007 / val-006)
+	Logger Logger
+}
+
+// logger returns Logger or a NoopLogger fallback.
+func (s *WorkflowsService) logger() Logger {
+	if s.Logger == nil {
+		return NoopLogger{}
+	}
+	return s.Logger
 }
 
 // NewWorkflowsService creates a new WorkflowsService.
+// VerifySSL defaults to true (TLS verification ON). The HTTPClient field
+// is left nil and resolved lazily by httpClient(); see that method for the
+// rules (T2.4 / SEC-004 + EC-5).
 func NewWorkflowsService(host, token, namespace string) *WorkflowsService {
 	return &WorkflowsService{
-		Host:       strings.TrimRight(host, "/"),
-		Token:      token,
-		Namespace:  namespace,
-		VerifySSL:  true,
-		HTTPClient: &http.Client{Timeout: 30 * time.Second},
+		Host:      strings.TrimRight(host, "/"),
+		Token:     token,
+		Namespace: namespace,
+		VerifySSL: true,
 	}
+}
+
+// httpClient returns the HTTP client used for requests.
+//
+// Resolution order (EC-5 from edge-case review):
+//  1. If s.HTTPClient is non-nil, return it as-is (consumer-injected
+//     clients are honored — e.g., for tracing, proxy, custom transport).
+//  2. Otherwise, construct a default client wired to s.VerifySSL via
+//     tls.Config (T2.4 / SEC-004). Memoize on s.HTTPClient.
+//
+// MinVersion is fixed to TLS 1.2 per
+// .claude/rules/golang-conventions.md §HTTP client.
+func (s *WorkflowsService) httpClient() HTTPClient {
+	if s.HTTPClient != nil {
+		return s.HTTPClient
+	}
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: !s.VerifySSL, //nolint:gosec // intentionally configurable via VerifySSL
+			MinVersion:         tls.VersionTLS12,
+		},
+	}
+	s.HTTPClient = &http.Client{Timeout: defaultClientTimeout, Transport: tr}
+	return s.HTTPClient
 }
 
 // FormatToken formats the token for the Authorization header.
@@ -82,15 +131,20 @@ func (s *WorkflowsService) doRequest(ctx context.Context, method, path string, b
 		req.Header.Set("Authorization", token)
 	}
 
-	resp, err := s.HTTPClient.Do(req)
+	start := time.Now()
+	resp, err := s.httpClient().Do(req)
 	if err != nil {
+		logSafe(s.logger().Error, "argo request failed",
+			"method", method, "path", path, "err", err.Error())
 		return nil, fmt.Errorf("execute request: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
+	logSafe(s.logger().Debug, "argo response",
+		"method", method, "path", path, "status", resp.StatusCode, "latency_ms", time.Since(start).Milliseconds())
 
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := readBoundedBody(resp.Body, maxResponseBodyBytes)
 	if err != nil {
-		return nil, fmt.Errorf("read response: %w", err)
+		return nil, err
 	}
 
 	if resp.StatusCode >= 400 {
@@ -101,6 +155,21 @@ func (s *WorkflowsService) doRequest(ctx context.Context, method, path string, b
 	}
 
 	return respBody, nil
+}
+
+// readBoundedBody reads up to limit bytes from r. If r would yield more
+// than limit bytes (i.e., one additional Read would succeed), returns
+// model.ErrResponseTooLarge (wrapped). T2.5 / SEC-005.
+func readBoundedBody(r io.Reader, limit int64) ([]byte, error) {
+	limited := io.LimitReader(r, limit+1) // +1 to detect overflow
+	body, err := io.ReadAll(limited)
+	if err != nil {
+		return nil, fmt.Errorf("client: read response: %w", err)
+	}
+	if int64(len(body)) > limit {
+		return nil, fmt.Errorf("%w (limit %d bytes)", model.ErrResponseTooLarge, limit)
+	}
+	return body, nil
 }
 
 // APIError represents an error from the Argo API.
@@ -122,14 +191,19 @@ type WorkflowCreateRequest struct {
 }
 
 // CreateWorkflowFromModel submits a pre-built workflow model to the Argo server.
+// Returns model.ErrInvalidNamespace (wrapped) if namespace fails RFC1123 validation. (T2.3 / SEC-003).
 func (s *WorkflowsService) CreateWorkflowFromModel(ctx context.Context, wfModel model.WorkflowModel, namespace string) (model.WorkflowModel, error) {
 	ns := namespace
 	if ns == "" {
 		ns = s.Namespace
 	}
 
+	path, err := workflowsPath(ns)
+	if err != nil {
+		return model.WorkflowModel{}, err
+	}
 	body := WorkflowCreateRequest{Workflow: wfModel}
-	respBody, err := s.doRequest(ctx, http.MethodPost, "/api/v1/workflows/"+ns, body)
+	respBody, err := s.doRequest(ctx, http.MethodPost, path, body)
 	if err != nil {
 		return model.WorkflowModel{}, err
 	}
@@ -142,11 +216,16 @@ func (s *WorkflowsService) CreateWorkflowFromModel(ctx context.Context, wfModel 
 }
 
 // GetWorkflow retrieves a workflow by name.
+// Returns model.ErrInvalidName / ErrInvalidNamespace (wrapped) on validation failure.
 func (s *WorkflowsService) GetWorkflow(ctx context.Context, name, namespace string) (model.WorkflowModel, error) {
 	if namespace == "" {
 		namespace = s.Namespace
 	}
-	respBody, err := s.doRequest(ctx, http.MethodGet, "/api/v1/workflows/"+namespace+"/"+name, nil)
+	path, err := workflowPath(namespace, name)
+	if err != nil {
+		return model.WorkflowModel{}, err
+	}
+	respBody, err := s.doRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		return model.WorkflowModel{}, err
 	}
@@ -163,7 +242,11 @@ func (s *WorkflowsService) DeleteWorkflow(ctx context.Context, name, namespace s
 	if namespace == "" {
 		namespace = s.Namespace
 	}
-	_, err := s.doRequest(ctx, http.MethodDelete, "/api/v1/workflows/"+namespace+"/"+name, nil)
+	path, err := workflowPath(namespace, name)
+	if err != nil {
+		return err
+	}
+	_, err = s.doRequest(ctx, http.MethodDelete, path, nil)
 	return err
 }
 
@@ -177,7 +260,11 @@ func (s *WorkflowsService) ListWorkflows(ctx context.Context, namespace string) 
 	if namespace == "" {
 		namespace = s.Namespace
 	}
-	respBody, err := s.doRequest(ctx, http.MethodGet, "/api/v1/workflows/"+namespace, nil)
+	path, err := workflowsPath(namespace)
+	if err != nil {
+		return nil, err
+	}
+	respBody, err := s.doRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -196,8 +283,12 @@ func (s *WorkflowsService) LintWorkflowFromModel(ctx context.Context, wfModel mo
 		ns = s.Namespace
 	}
 
+	base, err := workflowsPath(ns)
+	if err != nil {
+		return model.WorkflowModel{}, err
+	}
 	body := WorkflowCreateRequest{Workflow: wfModel}
-	respBody, err := s.doRequest(ctx, http.MethodPost, "/api/v1/workflows/"+ns+"/lint", body)
+	respBody, err := s.doRequest(ctx, http.MethodPost, base+"/lint", body)
 	if err != nil {
 		return model.WorkflowModel{}, err
 	}
@@ -233,64 +324,92 @@ func (s *WorkflowsService) LintWorkflow(ctx context.Context, b Buildable) (model
 
 // StopWorkflow stops a running workflow (allows running steps to complete).
 func (s *WorkflowsService) StopWorkflow(ctx context.Context, name, namespace string) error {
-	if namespace == "" {
-		namespace = s.Namespace
-	}
-	_, err := s.doRequest(ctx, http.MethodPut, "/api/v1/workflows/"+namespace+"/"+name+"/stop", nil)
-	return err
+	return s.lifecycleOp(ctx, name, namespace, "stop")
 }
 
 // TerminateWorkflow terminates a running workflow immediately.
 func (s *WorkflowsService) TerminateWorkflow(ctx context.Context, name, namespace string) error {
-	if namespace == "" {
-		namespace = s.Namespace
-	}
-	_, err := s.doRequest(ctx, http.MethodPut, "/api/v1/workflows/"+namespace+"/"+name+"/terminate", nil)
-	return err
+	return s.lifecycleOp(ctx, name, namespace, "terminate")
 }
 
 // SuspendWorkflow suspends a running workflow.
 func (s *WorkflowsService) SuspendWorkflow(ctx context.Context, name, namespace string) error {
-	if namespace == "" {
-		namespace = s.Namespace
-	}
-	_, err := s.doRequest(ctx, http.MethodPut, "/api/v1/workflows/"+namespace+"/"+name+"/suspend", nil)
-	return err
+	return s.lifecycleOp(ctx, name, namespace, "suspend")
 }
 
 // ResumeWorkflow resumes a suspended workflow.
 func (s *WorkflowsService) ResumeWorkflow(ctx context.Context, name, namespace string) error {
+	return s.lifecycleOp(ctx, name, namespace, "resume")
+}
+
+// lifecycleOp factors stop/terminate/suspend/resume — all share the same
+// PUT /api/v1/workflows/{ns}/{name}/{action} shape with validation + URL escape.
+func (s *WorkflowsService) lifecycleOp(ctx context.Context, name, namespace, action string) error {
 	if namespace == "" {
 		namespace = s.Namespace
 	}
-	_, err := s.doRequest(ctx, http.MethodPut, "/api/v1/workflows/"+namespace+"/"+name+"/resume", nil)
+	path, err := workflowActionPath(namespace, name, action)
+	if err != nil {
+		return err
+	}
+	_, err = s.doRequest(ctx, http.MethodPut, path, nil)
 	return err
 }
 
 // --- Info Operations ---
 
-// GetInfo returns server info.
-func (s *WorkflowsService) GetInfo(ctx context.Context) (map[string]interface{}, error) {
+// ArgoServerInfo is the known-fields subset of the /api/v1/info response.
+// Additional fields returned by the server are preserved in Extra. (T4.9 /
+// code-p4-getinfo-getversion-untyped).
+type ArgoServerInfo struct {
+	ManagedNamespace string                 `json:"managedNamespace,omitempty"`
+	Links            []ArgoServerInfoLink   `json:"links,omitempty"`
+	ModalsClosed     []string               `json:"modals,omitempty"`
+	NavColor         string                 `json:"navColor,omitempty"`
+	Extra            map[string]interface{} `json:"-"`
+}
+
+// ArgoServerInfoLink mirrors the items in /api/v1/info "links".
+type ArgoServerInfoLink struct {
+	Name  string `json:"name,omitempty"`
+	Scope string `json:"scope,omitempty"`
+	URL   string `json:"url,omitempty"`
+}
+
+// ArgoServerVersion is the known-fields subset of the /api/v1/version response.
+type ArgoServerVersion struct {
+	Version      string `json:"version,omitempty"`
+	BuildDate    string `json:"buildDate,omitempty"`
+	GitCommit    string `json:"gitCommit,omitempty"`
+	GitTag       string `json:"gitTag,omitempty"`
+	GitTreeState string `json:"gitTreeState,omitempty"`
+	GoVersion    string `json:"goVersion,omitempty"`
+	Compiler     string `json:"compiler,omitempty"`
+	Platform     string `json:"platform,omitempty"`
+}
+
+// GetInfo returns typed server info. (T4.9).
+func (s *WorkflowsService) GetInfo(ctx context.Context) (ArgoServerInfo, error) {
 	respBody, err := s.doRequest(ctx, http.MethodGet, "/api/v1/info", nil)
 	if err != nil {
-		return nil, err
+		return ArgoServerInfo{}, err
 	}
-	var result map[string]interface{}
+	var result ArgoServerInfo
 	if err := json.Unmarshal(respBody, &result); err != nil {
-		return nil, err
+		return ArgoServerInfo{}, fmt.Errorf("unmarshal info: %w", err)
 	}
 	return result, nil
 }
 
-// GetVersion returns server version.
-func (s *WorkflowsService) GetVersion(ctx context.Context) (map[string]interface{}, error) {
+// GetVersion returns typed server version. (T4.9).
+func (s *WorkflowsService) GetVersion(ctx context.Context) (ArgoServerVersion, error) {
 	respBody, err := s.doRequest(ctx, http.MethodGet, "/api/v1/version", nil)
 	if err != nil {
-		return nil, err
+		return ArgoServerVersion{}, err
 	}
-	var result map[string]interface{}
+	var result ArgoServerVersion
 	if err := json.Unmarshal(respBody, &result); err != nil {
-		return nil, err
+		return ArgoServerVersion{}, fmt.Errorf("unmarshal version: %w", err)
 	}
 	return result, nil
 }

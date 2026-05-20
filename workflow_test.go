@@ -323,11 +323,11 @@ func TestWorkflowWithVolumes(t *testing.T) {
 func TestWorkflowWithTTLAndPodGC(t *testing.T) {
 	secs := 3600
 	w := &Workflow{
-		Name:       "with-gc",
-		Entrypoint: "main",
+		Name:        "with-gc",
+		Entrypoint:  "main",
 		TTLStrategy: &TTLStrategy{SecondsAfterCompletion: &secs},
-		PodGC:      &PodGC{Strategy: "OnPodCompletion"},
-		Templates:  []Templatable{&Container{Name: "main", Image: "alpine"}},
+		PodGC:       &PodGC{Strategy: "OnPodCompletion"},
+		Templates:   []Templatable{&Container{Name: "main", Image: "alpine"}},
 	}
 	model, err := w.Build()
 	if err != nil {
@@ -821,9 +821,9 @@ func TestUserContainerAsInitContainer(t *testing.T) {
 
 func TestUserContainerAsSidecar(t *testing.T) {
 	sidecar := &UserContainer{
-		Name:    "log-collector",
-		Image:   "fluentd:latest",
-		Env:     []EnvBuilder{Env{Name: "LOG_LEVEL", Value: "debug"}},
+		Name:  "log-collector",
+		Image: "fluentd:latest",
+		Env:   []EnvBuilder{Env{Name: "LOG_LEVEL", Value: "debug"}},
 	}
 
 	c := &Container{
@@ -881,7 +881,7 @@ func TestGlobalConfigDefaults(t *testing.T) {
 	if cfg.GetImage() != "python:3.11" {
 		t.Errorf("default image = %q, want 'python:3.11'", cfg.GetImage())
 	}
-	if !cfg.VerifySSL {
+	if !cfg.GetVerifySSL() {
 		t.Error("default VerifySSL should be true")
 	}
 }
@@ -1008,11 +1008,11 @@ func TestGlobalConfigReset(t *testing.T) {
 	if cfg.GetNamespace() != "" {
 		t.Errorf("namespace after reset = %q", cfg.GetNamespace())
 	}
-	if cfg.Host != "" {
-		t.Errorf("host after reset = %q", cfg.Host)
+	if cfg.GetHost() != "" {
+		t.Errorf("host after reset = %q", cfg.GetHost())
 	}
-	if cfg.Token != "" {
-		t.Errorf("token after reset = %q", cfg.Token)
+	if cfg.GetToken() != "" {
+		t.Errorf("token after reset = %q", cfg.GetToken())
 	}
 }
 
@@ -1074,8 +1074,8 @@ func TestRetryStrategyBuild(t *testing.T) {
 
 func TestMetricStructure(t *testing.T) {
 	m := Metric{
-		Name: "build_duration",
-		Help: "Duration of build step",
+		Name:   "build_duration",
+		Help:   "Duration of build step",
 		Labels: []Label{{Key: "step", Value: "build"}},
 		Gauge:  &Gauge{Value: "{{duration}}", Realtime: ptrBool(true)},
 	}
@@ -1164,7 +1164,7 @@ func TestStepGetOutputArtifact(t *testing.T) {
 	}
 }
 
-// Test using output refs in a workflow
+// Test using output refs in a workflow.
 func TestOutputRefsInWorkflow(t *testing.T) {
 	dag := &DAG{Name: "pipeline"}
 	gen := &Task{Name: "generate", Template: "gen-script"}

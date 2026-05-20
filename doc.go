@@ -33,7 +33,7 @@
 //
 // # Expression Builder
 //
-// The [Expr] type and helper functions ([E], [C], [Tasks], [StepsExpr], [InputParam])
+// The [Expr] type and helper functions ([expr.E], [expr.C], [expr.Tasks], [expr.Steps], [expr.InputParam])
 // provide a fluent API for building Argo expressions.
 //
 // # REST Client

@@ -1,10 +1,16 @@
 package forge
 
 import (
+	"errors"
 	"fmt"
+	"time"
 
 	"github.com/usetheodev/theo-forge/model"
 )
+
+// timeParseDuration is a thin indirection over time.ParseDuration to keep
+// parseTimeoutSeconds testable; kept package-private.
+var timeParseDuration = time.ParseDuration
 
 // --- ContainerSet ---
 
@@ -53,11 +59,15 @@ type ContainerSet struct {
 	RetryStrategy *RetryStrategy
 }
 
+// GetName is the method.
 func (cs *ContainerSet) GetName() string {
 	return cs.Name
 }
 
 // BuildTemplate builds the Argo Template for this ContainerSet.
+// T4.6 — reuses the shared input/output helpers instead of duplicating
+// the inline loops; removes ~30 LoC of duplication previously flagged
+// in code-p4-containerset-inline-io-build.
 func (cs *ContainerSet) BuildTemplate() (model.TemplateModel, error) {
 	if cs.Name == "" {
 		return model.TemplateModel{}, fmt.Errorf("container set template name cannot be empty")
@@ -71,34 +81,15 @@ func (cs *ContainerSet) BuildTemplate() (model.TemplateModel, error) {
 		containers[i] = cs.Containers[i].buildModel()
 	}
 
-	var inputs *model.InputsModel
-	if len(cs.Inputs) > 0 {
-		inputs = &model.InputsModel{}
-		for _, p := range cs.Inputs {
-			m, err := p.AsInput()
-			if err != nil {
-				return model.TemplateModel{}, fmt.Errorf("container set %q input parameter %q: %w", cs.Name, p.Name, err)
-			}
-			inputs.Parameters = append(inputs.Parameters, m)
-		}
+	inputs, err := buildInputsFromParams(cs.Inputs, nil)
+	if err != nil {
+		return model.TemplateModel{}, fmt.Errorf("container set %q: %w", cs.Name, err)
 	}
-
-	var outputs *model.OutputsModel
-	if len(cs.Outputs) > 0 {
-		outputs = &model.OutputsModel{}
-		for _, p := range cs.Outputs {
-			m, err := p.AsOutput()
-			if err != nil {
-				return model.TemplateModel{}, fmt.Errorf("container set %q output parameter %q: %w", cs.Name, p.Name, err)
-			}
-			outputs.Parameters = append(outputs.Parameters, m)
-		}
+	outputs, err := buildOutputsFromParams(cs.Outputs, nil)
+	if err != nil {
+		return model.TemplateModel{}, fmt.Errorf("container set %q: %w", cs.Name, err)
 	}
-
-	var mounts []model.VolumeMountModel
-	for _, v := range cs.VolumeMounts {
-		mounts = append(mounts, v.BuildVolumeMount())
-	}
+	mounts := buildVolumeMountModels(cs.VolumeMounts)
 
 	return model.TemplateModel{
 		Name:    cs.Name,
@@ -146,6 +137,7 @@ type ResourceTemplate struct {
 	Annotations map[string]string
 }
 
+// GetName is the method.
 func (r *ResourceTemplate) GetName() string {
 	return r.Name
 }
@@ -167,9 +159,9 @@ func (r *ResourceTemplate) BuildTemplate() (model.TemplateModel, error) {
 		return model.TemplateModel{}, fmt.Errorf("resource template %q: %w", r.Name, err)
 	}
 
-	outputs, err2 := buildOutputsFromParams(r.Outputs, r.OutputArtifacts)
-	if err2 != nil {
-		return model.TemplateModel{}, fmt.Errorf("resource template %q: %w", r.Name, err2)
+	outputs, err := buildOutputsFromParams(r.Outputs, r.OutputArtifacts)
+	if err != nil {
+		return model.TemplateModel{}, fmt.Errorf("resource template %q: %w", r.Name, err)
 	}
 
 	return model.TemplateModel{
@@ -203,6 +195,7 @@ type Suspend struct {
 	Outputs []Parameter
 }
 
+// GetName is the method.
 func (s *Suspend) GetName() string {
 	return s.Name
 }
@@ -255,6 +248,7 @@ type HTTPTemplate struct {
 	Timeout string
 }
 
+// GetName is the method.
 func (h *HTTPTemplate) GetName() string {
 	return h.Name
 }
@@ -297,17 +291,42 @@ func (h *HTTPTemplate) BuildTemplate() (model.TemplateModel, error) {
 		}
 	}
 
+	// T3.10: parse Timeout into HTTPModel.TimeoutSeconds (*int).
+	// h.Timeout (string) was previously kept ONLY in TemplateModel.Timeout,
+	// never reaching the inner HTTPModel where Argo actually reads it.
+	// We populate both for backward compatibility.
+	httpModel := &model.HTTPModel{
+		URL:              h.URL,
+		Method:           h.Method,
+		Headers:          headers,
+		Body:             h.Body,
+		SuccessCondition: h.SuccessCondition,
+	}
+	if h.Timeout != "" {
+		secs, err := parseTimeoutSeconds(h.Timeout)
+		if err != nil {
+			return model.TemplateModel{}, fmt.Errorf("HTTP template %q timeout: %w", h.Name, err)
+		}
+		httpModel.TimeoutSeconds = &secs
+	}
+
 	return model.TemplateModel{
-		Name: h.Name,
-		HTTP: &model.HTTPModel{
-			URL:              h.URL,
-			Method:           h.Method,
-			Headers:          headers,
-			Body:             h.Body,
-			SuccessCondition: h.SuccessCondition,
-		},
+		Name:    h.Name,
+		HTTP:    httpModel,
 		Inputs:  inputs,
 		Outputs: outputs,
 		Timeout: h.Timeout,
 	}, nil
+}
+
+// parseTimeoutSeconds converts a Go duration string ("30s", "5m") to integer seconds.
+// Returns model.ErrInvalidTimeout (wrapped) on parse failure. (T3.10 / code-p4-http-timeout-field-mismatch).
+func parseTimeoutSeconds(s string) (int, error) {
+	d, err := timeParseDuration(s)
+	if err != nil {
+		// Wrap both: sentinel via fmt.Errorf %w, inner err via errors.Join so
+		// callers can match both via errors.Is.
+		return 0, errors.Join(model.ErrInvalidTimeout, err)
+	}
+	return int(d.Seconds()), nil
 }

@@ -13,7 +13,7 @@
   <a href="https://github.com/usetheodev/theo-forge/actions/workflows/ci.yml"><img src="https://github.com/usetheodev/theo-forge/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://pkg.go.dev/github.com/usetheodev/theo-forge"><img src="https://pkg.go.dev/badge/github.com/usetheodev/theo-forge.svg" alt="Go Reference"></a>
   <a href="https://goreportcard.com/report/github.com/usetheodev/theo-forge"><img src="https://goreportcard.com/badge/github.com/usetheodev/theo-forge" alt="Go Report Card"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License: Apache-2.0"></a>
   <a href="https://github.com/usetheodev/theo-forge/releases"><img src="https://img.shields.io/github/v/release/usetheodev/theo-forge?include_prereleases&sort=semver" alt="Release"></a>
 </p>
 
@@ -111,10 +111,10 @@ echoTpl := &forge.Container{
 
 dag := &forge.DAG{Name: "diamond"}
 
-A := &forge.Task{Name: "A", Template: "echo", Arguments: []forge.Parameter{{Name: "msg", Value: ptr("Task A")}}}
-B := &forge.Task{Name: "B", Template: "echo", Arguments: []forge.Parameter{{Name: "msg", Value: ptr("Task B")}}}
-C := &forge.Task{Name: "C", Template: "echo", Arguments: []forge.Parameter{{Name: "msg", Value: ptr("Task C")}}}
-D := &forge.Task{Name: "D", Template: "echo", Arguments: []forge.Parameter{{Name: "msg", Value: ptr("Task D")}}}
+A := &forge.Task{Name: "A", Template: "echo", Arguments: []forge.Parameter{{Name: "msg", Value: forge.Ptr("Task A")}}}
+B := &forge.Task{Name: "B", Template: "echo", Arguments: []forge.Parameter{{Name: "msg", Value: forge.Ptr("Task B")}}}
+C := &forge.Task{Name: "C", Template: "echo", Arguments: []forge.Parameter{{Name: "msg", Value: forge.Ptr("Task C")}}}
+D := &forge.Task{Name: "D", Template: "echo", Arguments: []forge.Parameter{{Name: "msg", Value: forge.Ptr("Task D")}}}
 
 A.Then(B)   // A → B
 A.Then(C)   // A → C
@@ -184,7 +184,7 @@ svc := client.NewWorkflowsService(
 result, err := svc.CreateWorkflow(ctx, w)
 
 // List workflows
-workflows, err := svc.ListWorkflows(ctx, nil)
+workflows, err := svc.ListWorkflows(ctx, "")
 
 // Lint before submitting
 linted, err := svc.LintWorkflow(ctx, w)
@@ -202,7 +202,7 @@ ref := expr.Tasks("my-task").Attr("outputs.result")
 fmt.Println(ref.Tmpl()) // {{tasks.my-task.outputs.result}}
 
 // Build conditionals
-cond := expr.Steps("validate").Attr("outputs.result").Eq(expr.C("success"))
+cond := expr.Steps("validate").Attr("outputs.result").Equals(expr.C("success"))
 ```
 
 ## Features
@@ -341,4 +341,10 @@ Please keep PRs focused — one feature or fix per PR.
 
 ## License
 
-[MIT License](LICENSE) — use it however you want.
+[Apache License 2.0](LICENSE)
+
+## Community
+
+- Discord: https://discord.usetheo.dev/
+- X: https://x.com/usetheodev
+- LinkedIn: https://linkedin.com/company/usetheodev

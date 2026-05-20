@@ -3,6 +3,7 @@ package model
 // RetryPolicy defines when to retry a step/task.
 type RetryPolicy string
 
+// RetryPolicy literals.
 const (
 	RetryAlways           RetryPolicy = "Always"
 	RetryOnFailure        RetryPolicy = "OnFailure"

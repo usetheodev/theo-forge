@@ -5,6 +5,7 @@ import "fmt"
 // WorkflowStatus represents the status of a workflow.
 type WorkflowStatus string
 
+// WorkflowStatus literals.
 const (
 	WorkflowPending    WorkflowStatus = "Pending"
 	WorkflowRunning    WorkflowStatus = "Running"

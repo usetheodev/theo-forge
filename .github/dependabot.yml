@@ -1,0 +1,40 @@
+version: 2
+
+# T5.1, T5.2, T5.8 — Dependabot configuration.
+#
+# Strategy: tag-pin GitHub Actions in workflows; let Dependabot auto-bump
+# (it can be configured to commit SHA pins via the `target-branch` rules).
+# Branch protection (T5.9) requires CODEOWNERS review on .github/** so a
+# Dependabot PR cannot self-merge.
+updates:
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci(deps)"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    # Disable auto-merge on .github/ changes (security boundary).
+    reviewers:
+      - "usetheodev"
+
+  - package-ecosystem: gomod
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps"
+    labels:
+      - "dependencies"
+      - "go"
+    # Ignore Go major-version bumps without explicit human review.
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-major

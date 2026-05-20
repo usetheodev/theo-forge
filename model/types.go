@@ -5,6 +5,7 @@ import "fmt"
 // ImagePullPolicy defines when to pull the image.
 type ImagePullPolicy string
 
+// ImagePullPolicy literals.
 const (
 	ImagePullAlways       ImagePullPolicy = "Always"
 	ImagePullNever        ImagePullPolicy = "Never"
@@ -61,6 +62,7 @@ type ImagePullSecret struct {
 // AccessMode defines the access mode for a PersistentVolumeClaim.
 type AccessMode string
 
+// AccessMode literals.
 const (
 	ReadWriteOnce    AccessMode = "ReadWriteOnce"
 	ReadOnlyMany     AccessMode = "ReadOnlyMany"

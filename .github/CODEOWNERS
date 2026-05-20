@@ -1,0 +1,14 @@
+# CODEOWNERS — required reviewers per path.
+# (T5.9 / EC-7 from edge-case review.)
+#
+# GitHub auto-requests review from listed owners on any PR touching the
+# matching paths. Branch protection on main requires approval from
+# CODEOWNERS before merge — see docs/REPO-SETTINGS.md.
+
+# Default: any change requires maintainer review.
+*       @usetheodev
+
+# .github/** is the supply-chain attack surface (CI workflows, Dependabot
+# config, this file). Require maintainer review even when Dependabot
+# opens a PR — Dependabot cannot self-approve.
+/.github/   @usetheodev

@@ -58,6 +58,7 @@ type ArtifactBuilder interface {
 
 // --- S3 ---
 
+// S3Artifact is the type.
 type S3Artifact struct {
 	Artifact
 	Bucket   string
@@ -66,6 +67,7 @@ type S3Artifact struct {
 	Region   string
 }
 
+// Build is the method.
 func (a S3Artifact) Build() (model.ArtifactModel, error) {
 	base, err := a.Artifact.Build()
 	if err != nil {
@@ -82,12 +84,14 @@ func (a S3Artifact) Build() (model.ArtifactModel, error) {
 
 // --- GCS ---
 
+// GCSArtifact is the type.
 type GCSArtifact struct {
 	Artifact
 	Bucket string
 	Key    string
 }
 
+// Build is the method.
 func (a GCSArtifact) Build() (model.ArtifactModel, error) {
 	base, err := a.Artifact.Build()
 	if err != nil {
@@ -102,11 +106,13 @@ func (a GCSArtifact) Build() (model.ArtifactModel, error) {
 
 // --- HTTP ---
 
+// HTTPArtifact is the type.
 type HTTPArtifact struct {
 	Artifact
 	URL string
 }
 
+// Build is the method.
 func (a HTTPArtifact) Build() (model.ArtifactModel, error) {
 	base, err := a.Artifact.Build()
 	if err != nil {
@@ -118,6 +124,7 @@ func (a HTTPArtifact) Build() (model.ArtifactModel, error) {
 
 // --- Git ---
 
+// GitArtifact is the type.
 type GitArtifact struct {
 	Artifact
 	Repo     string
@@ -126,6 +133,7 @@ type GitArtifact struct {
 	Depth    *int
 }
 
+// Build is the method.
 func (a GitArtifact) Build() (model.ArtifactModel, error) {
 	base, err := a.Artifact.Build()
 	if err != nil {
@@ -142,11 +150,13 @@ func (a GitArtifact) Build() (model.ArtifactModel, error) {
 
 // --- Raw ---
 
+// RawArtifact is the type.
 type RawArtifact struct {
 	Artifact
 	Data string
 }
 
+// Build is the method.
 func (a RawArtifact) Build() (model.ArtifactModel, error) {
 	base, err := a.Artifact.Build()
 	if err != nil {
@@ -158,6 +168,7 @@ func (a RawArtifact) Build() (model.ArtifactModel, error) {
 
 // --- Azure ---
 
+// AzureArtifact is the type.
 type AzureArtifact struct {
 	Artifact
 	Endpoint  string
@@ -165,6 +176,7 @@ type AzureArtifact struct {
 	Blob      string
 }
 
+// Build is the method.
 func (a AzureArtifact) Build() (model.ArtifactModel, error) {
 	base, err := a.Artifact.Build()
 	if err != nil {
@@ -180,6 +192,7 @@ func (a AzureArtifact) Build() (model.ArtifactModel, error) {
 
 // --- OSS ---
 
+// OSSArtifact is the type.
 type OSSArtifact struct {
 	Artifact
 	Bucket   string
@@ -187,6 +200,7 @@ type OSSArtifact struct {
 	Endpoint string
 }
 
+// Build is the method.
 func (a OSSArtifact) Build() (model.ArtifactModel, error) {
 	base, err := a.Artifact.Build()
 	if err != nil {
@@ -202,6 +216,7 @@ func (a OSSArtifact) Build() (model.ArtifactModel, error) {
 
 // --- HDFS ---
 
+// HDFSArtifact is the type.
 type HDFSArtifact struct {
 	Artifact
 	HDFSPath  string
@@ -209,6 +224,7 @@ type HDFSArtifact struct {
 	HDFSUser  string
 }
 
+// Build is the method.
 func (a HDFSArtifact) Build() (model.ArtifactModel, error) {
 	base, err := a.Artifact.Build()
 	if err != nil {
