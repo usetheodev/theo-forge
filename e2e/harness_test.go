@@ -23,8 +23,12 @@ import (
 // --- Environment ---
 
 const (
-	defaultNamespace   = "argo"
-	defaultServerHost  = "http://localhost:2746"
+	defaultNamespace = "argo"
+	// argo-server in the quick-start manifest serves HTTPS on 2746 with a
+	// self-signed cert. The port-forward preserves the scheme; tests
+	// MUST connect via https:// and set VerifySSL=false (we trust the
+	// localhost cert because we just stood the cluster up ourselves).
+	defaultServerHost  = "https://localhost:2746"
 	defaultWaitTimeout = 180 * time.Second
 )
 
