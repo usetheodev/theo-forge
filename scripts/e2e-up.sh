@@ -80,7 +80,12 @@ else
 fi
 
 log "applying Argo Workflows ${ARGO_VERSION} manifest"
-kubectl apply -n "${ARGO_NAMESPACE}" -f "${ARGO_MANIFEST_URL}" >/dev/null
+# --server-side is required for v4.x: CRDs ship with >262KB of OpenAPI
+# annotations which exceeds the client-side `last-applied-configuration`
+# annotation limit. SSA stores the field map server-side instead.
+# `--force-conflicts` lets re-apply replace conflicting fields owned by
+# a previous run (idempotent for `make e2e-up`).
+kubectl apply -n "${ARGO_NAMESPACE}" --server-side --force-conflicts -f "${ARGO_MANIFEST_URL}" >/dev/null
 
 log "waiting for argo-server + workflow-controller to be Ready (${ARGO_READY_TIMEOUT}s)"
 kubectl -n "${ARGO_NAMESPACE}" wait --for=condition=Available --timeout="${ARGO_READY_TIMEOUT}s" \

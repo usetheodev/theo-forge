@@ -31,7 +31,7 @@ See [`scripts/e2e-versions.sh`](../scripts/e2e-versions.sh):
 
 | Component | Version | Why this pin |
 |-----------|---------|--------------|
-| Argo Workflows | `v3.5.10` | Latest stable in the v3.5 LTS line at the time of the v0.5.0 cut. |
+| Argo Workflows | `v4.0.3` | Matches the appVersion shipped by argo-helm chart 1.0.5 — the version Theo Cloud installs in production (`infra/argocd-bootstrap/apps/build-argo-workflows.yaml`). Keeping E2E aligned with prod prevents v3↔v4 schema drift surprises. |
 | kind | `v0.24.0` | Last release before kind started auto-bumping to k8s 1.32 (which has CRD changes we have not validated). |
 | kind node image | `kindest/node:v1.31.0` | k8s 1.31 — matches Argo v3.5 support matrix. |
 

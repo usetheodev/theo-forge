@@ -12,7 +12,12 @@ set -euo pipefail
 
 # Argo Workflows — quickstart manifest (controller + server + minio + UI).
 # https://github.com/argoproj/argo-workflows/releases
-export ARGO_VERSION="${ARGO_VERSION:-v3.5.10}"
+#
+# Pinned to v4.0.3 because that is the appVersion shipped by argo-helm
+# chart 1.0.5, which Theo Cloud installs in production via ArgoCD
+# (infra/argocd-bootstrap/apps/build-argo-workflows.yaml).
+# Bumping requires re-running `make e2e` to catch CRD/API drift.
+export ARGO_VERSION="${ARGO_VERSION:-v4.0.3}"
 export ARGO_MANIFEST_URL="https://github.com/argoproj/argo-workflows/releases/download/${ARGO_VERSION}/quick-start-minimal.yaml"
 
 # kind — Kubernetes-in-Docker. Pinned to a release with stable Kubernetes 1.31 support.
