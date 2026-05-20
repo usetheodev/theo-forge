@@ -13,7 +13,7 @@
   <a href="https://github.com/usetheodev/theo-forge/actions/workflows/ci.yml"><img src="https://github.com/usetheodev/theo-forge/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://pkg.go.dev/github.com/usetheodev/theo-forge"><img src="https://pkg.go.dev/badge/github.com/usetheodev/theo-forge.svg" alt="Go Reference"></a>
   <a href="https://goreportcard.com/report/github.com/usetheodev/theo-forge"><img src="https://goreportcard.com/badge/github.com/usetheodev/theo-forge" alt="Go Report Card"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License: Apache-2.0"></a>
   <a href="https://github.com/usetheodev/theo-forge/releases"><img src="https://img.shields.io/github/v/release/usetheodev/theo-forge?include_prereleases&sort=semver" alt="Release"></a>
 </p>
 
@@ -288,4 +288,10 @@ Please keep PRs focused — one feature or fix per PR.
 
 ## License
 
-[MIT License](LICENSE) — use it however you want.
+[Apache License 2.0](LICENSE)
+
+## Community
+
+- Discord: https://discord.usetheo.dev/
+- X: https://x.com/usetheodev
+- LinkedIn: https://linkedin.com/company/usetheodev
