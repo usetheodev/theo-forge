@@ -196,3 +196,111 @@ func TestParameterModelJSON(t *testing.T) {
 		t.Errorf("json name = %v, want 'msg'", m["name"])
 	}
 }
+
+// --- NewRetryOnFailure (Phase 1 / T1.1) ---
+
+func TestNewRetryOnFailure_PopulatesAllFields(t *testing.T) {
+	rs := NewRetryOnFailure(2, "10s", "2", "120s")
+	if rs == nil {
+		t.Fatal("NewRetryOnFailure returned nil")
+	}
+	if rs.Limit == nil || *rs.Limit != 2 {
+		t.Errorf("Limit = %v, want pointer to 2", rs.Limit)
+	}
+	if rs.RetryPolicy != RetryPolicy("OnFailure") {
+		t.Errorf("RetryPolicy = %q, want OnFailure", rs.RetryPolicy)
+	}
+	if rs.Backoff == nil {
+		t.Fatal("Backoff is nil")
+	}
+	if rs.Backoff.Duration != "10s" {
+		t.Errorf("Backoff.Duration = %q, want 10s", rs.Backoff.Duration)
+	}
+	if rs.Backoff.Factor != "2" {
+		t.Errorf("Backoff.Factor = %v, want \"2\"", rs.Backoff.Factor)
+	}
+	if rs.Backoff.MaxDuration != "120s" {
+		t.Errorf("Backoff.MaxDuration = %q, want 120s", rs.Backoff.MaxDuration)
+	}
+}
+
+func TestNewRetryOnFailure_SkipOOMExpression(t *testing.T) {
+	rs := NewRetryOnFailure(3, "5s", "2", "60s")
+	const want = `asInt(lastRetry.exitCode) != 137`
+	if rs.Expression != want {
+		t.Errorf("Expression = %q, want %q", rs.Expression, want)
+	}
+}
+
+func TestNewRetryOnFailure_BuildProducesValidModel(t *testing.T) {
+	rs := NewRetryOnFailure(2, "10s", "2", "120s")
+	m := rs.Build()
+	if m.Limit != "2" {
+		t.Errorf("model.Limit = %v, want \"2\"", m.Limit)
+	}
+	if m.RetryPolicy != "OnFailure" {
+		t.Errorf("model.RetryPolicy = %q, want OnFailure", m.RetryPolicy)
+	}
+	if m.Backoff == nil {
+		t.Fatal("model.Backoff is nil")
+	}
+	if m.Backoff.Factor != "2" {
+		t.Errorf("model.Backoff.Factor = %v, want \"2\"", m.Backoff.Factor)
+	}
+	if m.Expression != `asInt(lastRetry.exitCode) != 137` {
+		t.Errorf("model.Expression mismatch: %q", m.Expression)
+	}
+}
+
+func TestNewRetryOnFailure_TableDriven(t *testing.T) {
+	cases := []struct {
+		name  string
+		limit int
+	}{
+		{"zero-limit", 0},
+		{"two-limit", 2},
+		{"ten-limit", 10},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rs := NewRetryOnFailure(tc.limit, "1s", "2", "30s")
+			if rs.Limit == nil || *rs.Limit != tc.limit {
+				t.Errorf("Limit = %v, want %d", rs.Limit, tc.limit)
+			}
+		})
+	}
+}
+
+// --- Backoff.Factor coverage backfill (Phase 1 / T1.1 EC-4) ---
+// review.db code-p4-backoff-factor-partial-normalization
+
+func TestBackoffFactor_Float64Normalization(t *testing.T) {
+	rs := RetryStrategy{
+		Limit:   Ptr(2),
+		Backoff: &Backoff{Duration: "5s", Factor: 1.5, MaxDuration: "30s"},
+	}
+	m := rs.Build()
+	got, ok := m.Backoff.Factor.(string)
+	if !ok {
+		t.Fatalf("Factor not normalized to string: %T %v", m.Backoff.Factor, m.Backoff.Factor)
+	}
+	if got != "1.5" {
+		t.Errorf("Factor = %q, want \"1.5\"", got)
+	}
+}
+
+func TestBackoffFactor_PointerFloat64(t *testing.T) {
+	f := 2.5
+	rs := RetryStrategy{
+		Limit:   Ptr(2),
+		Backoff: &Backoff{Duration: "5s", Factor: &f, MaxDuration: "30s"},
+	}
+	m := rs.Build()
+	got, ok := m.Backoff.Factor.(string)
+	if !ok {
+		t.Fatalf("Factor not normalized to string: %T %v", m.Backoff.Factor, m.Backoff.Factor)
+	}
+	if got != "2.5" {
+		t.Errorf("Factor = %q, want \"2.5\"", got)
+	}
+}
