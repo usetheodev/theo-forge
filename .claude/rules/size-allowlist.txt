@@ -1,0 +1,34 @@
+# theo-forge file-size budget
+#
+# Default: 500 LoC per Go file.
+# Format: relative/path/from/repo.root <ceiling-LoC> [optional-ADR-ref]
+# Lines starting with # are comments.
+# Files not listed here are subject to the default 500 LoC ceiling.
+#
+# Adding an entry here is debt acknowledgment, not a free pass.
+# Each entry MUST have a tracking issue or ADR before merge.
+#
+# Reviewed: 2026-05-20 by deep-review-loop run (see review-output/final_report.md)
+# ---------------------------------------------------------------
+
+# Default ceiling for production .go files: 500 LoC.
+# (Test files have a soft ceiling of 1000 LoC because table-driven tests are verbose;
+#  beyond that, split by domain.)
+
+# --- Currently within budget; listed for visibility ---
+
+helpers.go                          500   # already over 200 LoC; flagged for SRP-split in P3
+workflow.go                         500
+container.go                        500   # to be split when BaseTemplate is extracted (P3)
+
+# --- Generated files (none today) ---
+# (Generated files are exempt from the budget when noted with `generated:true` in a header comment.)
+
+# --- Acknowledged exceptions ---
+# (None today. Add here when justified in an ADR.)
+
+# --- Test file exceptions (soft 1000 LoC) ---
+examples_test.go                    2000  # 47KB documentation-style examples; SRP allows; split if it grows further
+helpers_test.go                     2000  # mirror of helpers.go test surface
+workflow_test.go                    1500
+roundtrip_test.go                   1000

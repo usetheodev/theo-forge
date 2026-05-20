@@ -10,20 +10,21 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/usetheodev/theo-forge/serialize"
 	yamlconv "sigs.k8s.io/yaml"
+
+	"github.com/usetheodev/theo-forge/serialize"
 )
 
 // --- Pointer helpers ---
 
-func ptrStr(s string) *string   { return &s }
-func ptrInt(i int) *int         { return &i }
-func ptrBool(b bool) *bool      { return &b }
+func ptrStr(s string) *string { return &s }
+func ptrInt(i int) *int       { return &i }
+func ptrBool(b bool) *bool    { return &b }
 
 // --- String helpers ---
 
 func contains(s, sub string) bool {
-	return len(s) >= len(sub) && (s == sub || len(s) > 0 && containsStr(s, sub))
+	return len(s) >= len(sub) && (s == sub || s != "" && containsStr(s, sub))
 }
 
 func containsStr(s, sub string) bool {

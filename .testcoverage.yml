@@ -1,0 +1,62 @@
+# Per-package coverage thresholds for `vladopajic/go-test-coverage`.
+#
+# Authority order:
+#   1. ~/.claude/CLAUDE.md §7 (Testes)
+#   2. .claude/rules/testing.md §Coverage targets
+#   3. This file (mechanizes the rules above for CI).
+#
+# Threshold semantics:
+#   - file: minimum % coverage every *.go file in scope must satisfy.
+#   - package: minimum % coverage every Go package must satisfy.
+#   - total: minimum % coverage the project as a whole must satisfy.
+#   - override: per-path adjustment (matched via regexp).
+#   - exclude: paths NOT counted toward any threshold (no statements).
+#
+# When CI ("make verify-coverage") fails, the diff vs. base branch is
+# printed by the tool itself. Threshold violations DO NOT block merge
+# unless `--badge-text-color` style enforcement is added — we use the
+# default exit-code behavior (non-zero on violation), which IS blocking.
+
+profile: coverage.out
+
+# Global defaults (applied to anything not overridden).
+# Progressive floor — raise these as Phase 7 backfill rounds land.
+# Targets per .claude/rules/testing.md (root ≥90, expr/config/serialize/validate ≥80–90,
+# client ≥80, model ≥70) are the EVENTUAL goal; current values reflect post-Phase-7 reality.
+threshold:
+  file: 0       # not enforced per-file globally — too noisy for builders
+  package: 70   # floor for every package; overrides below relax/tighten per package
+  total: 80     # project-wide floor — passing today at 82.7%
+
+# Per-package overrides — match the rules in .claude/rules/testing.md.
+# Paths are matched against module-relative import paths (the tool strips the
+# module prefix per github.com/vladopajic/go-test-coverage README).
+# Listed specific-to-general so earlier rules win.
+override:
+  # Post-Phase-7 round 2 backfill (item d) raised every package above the
+  # original .claude/rules/testing.md targets.
+  - path: ^expr$
+    threshold: 95  # currently 100%
+  - path: ^config$
+    threshold: 90  # currently 99.2% — was 80 floor; now meets full target
+  - path: ^serialize$
+    threshold: 80  # currently 83.9% — was 90 target; this is the realistic ceiling without testing yaml.Marshal failures
+  - path: ^validate$
+    threshold: 90  # currently 91.9% — meets full target
+  - path: ^client$
+    threshold: 80  # currently 85.5% — meets full target
+  - path: ^model$
+    threshold: 90  # currently 94.9% — far above original 70% target
+  - path: ^docs$
+    threshold: 0   # docs/ has no statements (README examples extracted as tests)
+  # Root package match — must come AFTER sub-package overrides above.
+  - path: ^$
+    threshold: 90  # root forge package (builder API) — currently 91.8%
+
+# Files NOT counted toward coverage thresholds.
+exclude:
+  paths:
+    # Generated / no-op files (none today; placeholders for future).
+    - \.pb\.go$
+    # Test scaffolding helpers (have their own coverage via the tests they enable).
+    - config/testhelper\.go$

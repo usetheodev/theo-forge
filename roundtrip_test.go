@@ -7,10 +7,11 @@ import (
 	"strings"
 	"testing"
 
+	"sigs.k8s.io/yaml"
+
 	"github.com/usetheodev/theo-forge/expr"
 	"github.com/usetheodev/theo-forge/model"
 	"github.com/usetheodev/theo-forge/serialize"
-	"sigs.k8s.io/yaml"
 )
 
 func TestRoundTripYAML(t *testing.T) {
@@ -653,7 +654,7 @@ func TestRoundTripWorkflowBuilder(t *testing.T) {
 	}
 }
 
-// Ensure CronWorkflowFromYAML exists
+// Ensure CronWorkflowFromYAML exists.
 func init() {
 	// Verify serialize package has the necessary functions
 	_ = serialize.WorkflowFromYAML

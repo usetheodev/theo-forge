@@ -13,6 +13,7 @@ type Env struct {
 	Value string
 }
 
+// Build is the method.
 func (e Env) Build() model.EnvVarModel {
 	v := e.Value
 	return model.EnvVarModel{Name: e.Name, Value: &v}
@@ -26,6 +27,7 @@ type SecretEnv struct {
 	Optional   *bool
 }
 
+// Build is the method.
 func (e SecretEnv) Build() model.EnvVarModel {
 	return model.EnvVarModel{
 		Name: e.Name,
@@ -47,6 +49,7 @@ type ConfigMapEnv struct {
 	Optional      *bool
 }
 
+// Build is the method.
 func (e ConfigMapEnv) Build() model.EnvVarModel {
 	return model.EnvVarModel{
 		Name: e.Name,
@@ -67,6 +70,7 @@ type FieldEnv struct {
 	APIVersion string
 }
 
+// Build is the method.
 func (e FieldEnv) Build() model.EnvVarModel {
 	return model.EnvVarModel{
 		Name: e.Name,
@@ -87,6 +91,7 @@ type ResourceEnv struct {
 	Divisor       string
 }
 
+// Build is the method.
 func (e ResourceEnv) Build() model.EnvVarModel {
 	return model.EnvVarModel{
 		Name: e.Name,

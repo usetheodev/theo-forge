@@ -42,9 +42,9 @@ func TestSecretEnvBuild(t *testing.T) {
 
 func TestConfigMapEnvBuild(t *testing.T) {
 	e := ConfigMapEnv{
-		Name:           "APP_CONFIG",
-		ConfigMapName:  "app-config",
-		ConfigMapKey:   "setting",
+		Name:          "APP_CONFIG",
+		ConfigMapName: "app-config",
+		ConfigMapKey:  "setting",
 	}
 	model := e.Build()
 	if model.Name != "APP_CONFIG" {

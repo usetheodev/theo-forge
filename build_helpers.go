@@ -4,12 +4,16 @@ import (
 	"fmt"
 
 	"github.com/usetheodev/theo-forge/config"
+	"github.com/usetheodev/theo-forge/expr"
 	"github.com/usetheodev/theo-forge/model"
-	"github.com/usetheodev/theo-forge/serialize"
 	"github.com/usetheodev/theo-forge/validate"
 )
 
-// --- Build helpers ---
+// T4.2 — split from helpers.go per SRP. Contains:
+//   - shared sub-model builders (inputs/outputs/env/volume/metadata/metrics/retry)
+//   - the top-level Templatable pipeline (buildTemplateModels)
+//   - Build-time invariants (validateBuiltTemplate)
+//   - generic public helpers (BuildArguments, BuildArgumentsFromMap, Ptr, InputParam)
 
 // buildInputsFromParams builds an InputsModel from parameters and artifacts.
 func buildInputsFromParams(params []Parameter, artifacts []ArtifactBuilder) (*model.InputsModel, error) {
@@ -109,17 +113,63 @@ func buildRetryStrategyModel(rs *RetryStrategy) *model.RetryStrategyModel {
 }
 
 // buildTemplateModels builds and hooks all Templatable entries, returning the slice of TemplateModel.
-func buildTemplateModels(templates []Templatable) ([]model.TemplateModel, error) {
+// cfg is the resolved config (see resolveConfig). Order of operations:
+//  1. BuildTemplate() produces the raw model (cheap structural validation only).
+//  2. cfg.ApplyTemplateDefaults overlays scalar defaults (Image, ImagePullPolicy, ServiceAccountName).
+//  3. validateBuiltTemplate checks required fields that may have been supplied by step 2
+//     (T3.5 ErrEmptyImage — Image must exist either explicitly OR via cfg default).
+//  4. cfg.DispatchTemplateHooks fires consumer hooks last, after defaults + validation.
+func buildTemplateModels(templates []Templatable, cfg *config.GlobalConfig) ([]model.TemplateModel, error) {
 	result := make([]model.TemplateModel, 0, len(templates))
 	for _, t := range templates {
 		m, err := t.BuildTemplate()
 		if err != nil {
 			return nil, fmt.Errorf("template %q: %w", t.GetName(), err)
 		}
-		globalConfig.DispatchTemplateHooks(&m)
+		cfg.ApplyTemplateDefaults(&m)
+		if err := validateBuiltTemplate(&m); err != nil {
+			return nil, fmt.Errorf("template %q: %w", t.GetName(), err)
+		}
+		cfg.DispatchTemplateHooks(&m)
+		// T8.2: named hooks fire after anonymous hooks; their errors abort the build.
+		if err := cfg.DispatchNamedTemplateHooks(&m); err != nil {
+			return nil, fmt.Errorf("template %q: %w", t.GetName(), err)
+		}
 		result = append(result, m)
 	}
 	return result, nil
+}
+
+// validateBuiltTemplate enforces field invariants that depend on
+// GlobalConfig defaults having been applied first.
+//   - Image presence on Container/Script (T3.5 / code-p4-missing-image-validation).
+//   - Resource units on Container/Script (T3.12 / completeness-h7-resource-validation-not-in-build).
+//
+// type. Flattening would lose the early-return on missing Image.
+//
+//nolint:nestif // 2-deep nesting (type check + resource check) per receiver
+func validateBuiltTemplate(t *model.TemplateModel) error {
+	if t.Container != nil {
+		if t.Container.Image == "" {
+			return model.ErrEmptyImage
+		}
+		if t.Container.Resources != nil {
+			if err := validate.ResourceRequirements(*t.Container.Resources); err != nil {
+				return fmt.Errorf("container resources: %w", err)
+			}
+		}
+	}
+	if t.Script != nil {
+		if t.Script.Image == "" {
+			return model.ErrEmptyImage
+		}
+		if t.Script.Resources != nil {
+			if err := validate.ResourceRequirements(*t.Script.Resources); err != nil {
+				return fmt.Errorf("script resources: %w", err)
+			}
+		}
+	}
+	return nil
 }
 
 // BuildArguments is a helper to build ArgumentsModel from a mix of parameters and artifacts.
@@ -162,73 +212,18 @@ func BuildArgumentsFromMap(params map[string]string) *model.ArgumentsModel {
 	return args
 }
 
-// --- File I/O ---
-
-// ToFile writes the workflow YAML to a file.
-// If name is empty, the workflow name is used as the filename.
-func (w *Workflow) ToFile(outputDir string, name string) (string, error) {
-	yamlStr, err := w.ToYAML()
-	if err != nil {
-		return "", err
-	}
-	return serialize.WorkflowToFile(yamlStr, outputDir, name, w.Name, w.GenerateName)
+// Ptr returns a pointer to v. Use it when an SDK field expects `*T`
+// (e.g., Parameter.Value, *int retry counts) and you have a literal value.
+//
+// Example:
+//
+//	forge.Parameter{Name: "msg", Value: forge.Ptr("hello")}
+func Ptr[T any](v T) *T {
+	return &v
 }
 
-// FromFile reads a WorkflowModel from a YAML file.
-func FromFile(path string) (model.WorkflowModel, error) {
-	return serialize.WorkflowFromFile(path)
-}
-
-// --- Unit validation ---
-
-// ValidateBinaryUnit validates a binary resource unit (memory: Ki, Mi, Gi, Ti, Pi, Ei).
-func ValidateBinaryUnit(s string) error {
-	return validate.BinaryUnit(s)
-}
-
-// ValidateDecimalUnit validates a decimal resource unit (CPU: m, k, M, G, T, P, E).
-func ValidateDecimalUnit(s string) error {
-	return validate.DecimalUnit(s)
-}
-
-// ConvertBinaryUnit converts a binary unit string to its numeric value in base units (bytes).
-func ConvertBinaryUnit(s string) (float64, error) {
-	return validate.ConvertBinaryUnit(s)
-}
-
-// ConvertDecimalUnit converts a decimal unit string to its numeric value in base units.
-func ConvertDecimalUnit(s string) (float64, error) {
-	return validate.ConvertDecimalUnit(s)
-}
-
-// ValidateResourceRequirements checks that requests don't exceed limits and values are positive.
-func ValidateResourceRequirements(r ResourceRequirements) error {
-	return validate.ResourceRequirements(r)
-}
-
-// --- Global configuration ---
-
-// PreBuildHook is a function that transforms a TemplateModel before submission.
-type PreBuildHook = config.PreBuildHook
-
-// WorkflowPreBuildHook is a function that transforms a WorkflowModel before submission.
-type WorkflowPreBuildHook = config.WorkflowPreBuildHook
-
-// GlobalConfig holds default values applied to all workflows and templates.
-type GlobalConfig = config.GlobalConfig
-
-// globalConfig is the package-level reference to the global singleton.
-var globalConfig = config.GetGlobal()
-
-// NewConfig creates an independent GlobalConfig instance for dependency injection.
-// Use this instead of GetGlobalConfig when you need isolated configuration
-// (e.g., in tests or when building workflows with different settings concurrently).
-func NewConfig() *config.GlobalConfig {
-	return config.New()
-}
-
-// GetGlobalConfig returns the global configuration singleton.
-// For isolated configuration (tests, concurrent builds), use NewConfig() instead.
-func GetGlobalConfig() *config.GlobalConfig {
-	return config.GetGlobal()
+// InputParam returns an Argo template reference to an input parameter:
+// `"{{inputs.parameters.<name>}}"`. Convenience re-export of [expr.InputParam].
+func InputParam(name string) string {
+	return expr.InputParam(name)
 }

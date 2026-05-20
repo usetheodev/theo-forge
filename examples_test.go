@@ -35,19 +35,19 @@ func buildSteps() *Workflow {
 			func() Templatable {
 				s := &Steps{Name: "hello-hello-hello"}
 				_ = s.AddSequentialStep(&Step{
-					Name:     "hello1",
-					Template: "print-message",
+					Name:      "hello1",
+					Template:  "print-message",
 					Arguments: []Parameter{{Name: "message", Value: ptrStr("hello1")}},
 				})
 				_ = s.AddParallelGroup(
 					&Step{
-						Name:     "hello2a",
-						Template: "print-message",
+						Name:      "hello2a",
+						Template:  "print-message",
 						Arguments: []Parameter{{Name: "message", Value: ptrStr("hello2a")}},
 					},
 					&Step{
-						Name:     "hello2b",
-						Template: "print-message",
+						Name:      "hello2b",
+						Template:  "print-message",
 						Arguments: []Parameter{{Name: "message", Value: ptrStr("hello2b")}},
 					},
 				)
@@ -191,8 +191,8 @@ func buildScriptsPython() *Workflow {
 				s := &Steps{Name: "python-script-example"}
 				_ = s.AddSequentialStep(&Step{Name: "generate", Template: "gen-random-int"})
 				_ = s.AddSequentialStep(&Step{
-					Name:     "print",
-					Template: "print-message",
+					Name:      "print",
+					Template:  "print-message",
 					Arguments: []Parameter{{Name: "message", Value: ptrStr("{{steps.generate.outputs.result}}")}},
 				})
 				return s
@@ -227,8 +227,8 @@ func buildLoops() *Workflow {
 			func() Templatable {
 				s := &Steps{Name: "loop-example"}
 				_ = s.AddSequentialStep(&Step{
-					Name:     "print-message-loop",
-					Template: "print-message",
+					Name:      "print-message-loop",
+					Template:  "print-message",
 					Arguments: []Parameter{{Name: "message", Value: ptrStr("{{item}}")}},
 					WithItems: []interface{}{"hello world", "goodbye world"},
 				})
@@ -305,8 +305,8 @@ func buildOutputParameter() *Workflow {
 				s := &Steps{Name: "output-parameter"}
 				_ = s.AddSequentialStep(&Step{Name: "generate-parameter", Template: "hello-world-to-file"})
 				_ = s.AddSequentialStep(&Step{
-					Name:     "consume-parameter",
-					Template: "print-message",
+					Name:      "consume-parameter",
+					Template:  "print-message",
 					Arguments: []Parameter{{Name: "message", Value: ptrStr("{{steps.generate-parameter.outputs.parameters.hello-param}}")}},
 				})
 				return s
@@ -458,7 +458,7 @@ func buildCronWorkflow() *CronWorkflow {
 		Schedules:                  []string{"* * * * *"},
 		Timezone:                   "America/Los_Angeles",
 		StartingDeadlineSeconds:    ptrInt(0),
-		ConcurrencyPolicy:         "Replace",
+		ConcurrencyPolicy:          "Replace",
 		SuccessfulJobsHistoryLimit: ptrInt(4),
 		FailedJobsHistoryLimit:     ptrInt(4),
 		Suspend:                    ptrBool(false),
@@ -488,8 +488,8 @@ func buildParallelismLimit() *Workflow {
 			func() Templatable {
 				s := &Steps{Name: "parallelism-limit"}
 				_ = s.AddSequentialStep(&Step{
-					Name:     "sleep",
-					Template: "sleep",
+					Name:      "sleep",
+					Template:  "sleep",
 					WithItems: []interface{}{"this", "workflow", "should", "take", "at", "least", 60, "seconds", "to", "complete"},
 				})
 				return s
@@ -1373,7 +1373,7 @@ func TestExampleWithVolumesAndSecrets(t *testing.T) {
 
 // --- Advanced example tests (consolidated from example_advanced_test.go) ---
 
-// TestExampleDefaultParameterOverwrite replicates Hera's default-parameters.yaml
+// TestExampleDefaultParameterOverwrite replicates Hera's default-parameters.yaml.
 func TestExampleDefaultParameterOverwrite(t *testing.T) {
 	generator := &Script{
 		Name:    "generator",
@@ -1435,7 +1435,7 @@ func TestExampleDefaultParameterOverwrite(t *testing.T) {
 	}
 }
 
-// TestExampleOutputParameterPassing replicates Hera's output-parameters.yaml
+// TestExampleOutputParameterPassing replicates Hera's output-parameters.yaml.
 func TestExampleOutputParameterPassing(t *testing.T) {
 	outScript := &Script{
 		Name:    "out",
@@ -1491,7 +1491,7 @@ func TestExampleOutputParameterPassing(t *testing.T) {
 	}
 }
 
-// TestExampleWithItemsLoop replicates Hera's loop patterns
+// TestExampleWithItemsLoop replicates Hera's loop patterns.
 func TestExampleWithItemsLoop(t *testing.T) {
 	echo := &Container{
 		Name:    "echo",
@@ -1531,7 +1531,7 @@ func TestExampleWithItemsLoop(t *testing.T) {
 	}
 }
 
-// TestExampleWithParamLoop tests withParam-based fan-out
+// TestExampleWithParamLoop tests withParam-based fan-out.
 func TestExampleWithParamLoop(t *testing.T) {
 	generate := &Script{
 		Name:    "generate-list",
@@ -1580,7 +1580,7 @@ func TestExampleWithParamLoop(t *testing.T) {
 	}
 }
 
-// TestExampleRetryWithBackoff tests retry configuration
+// TestExampleRetryWithBackoff tests retry configuration.
 func TestExampleRetryWithBackoff(t *testing.T) {
 	limit := 3
 	factor := 2
@@ -1618,7 +1618,7 @@ func TestExampleRetryWithBackoff(t *testing.T) {
 	}
 }
 
-// TestExampleSuspendApprovalGate tests manual approval pattern
+// TestExampleSuspendApprovalGate tests manual approval pattern.
 func TestExampleSuspendApprovalGate(t *testing.T) {
 	steps := &Steps{Name: "approval-flow"}
 	_ = steps.AddSequentialStep(&Step{Name: "deploy-staging", Template: "deploy"})
@@ -1648,7 +1648,7 @@ func TestExampleSuspendApprovalGate(t *testing.T) {
 	}
 }
 
-// TestExampleMultiClusterTemplateRef tests referencing ClusterWorkflowTemplate
+// TestExampleMultiClusterTemplateRef tests referencing ClusterWorkflowTemplate.
 func TestExampleMultiClusterTemplateRef(t *testing.T) {
 	// Define cluster-wide template
 	cwt := &ClusterWorkflowTemplate{
@@ -1700,5 +1700,71 @@ func TestExampleMultiClusterTemplateRef(t *testing.T) {
 	}
 	if !strings.Contains(y, "name: shared-build") {
 		t.Error("YAML missing CWT reference")
+	}
+}
+
+// TestExample_DefaultAffinityForVCT demonstrates the default podAffinity
+// injection for build workflows that share a ReadWriteOnce PVC across DAG
+// steps. The user does NOT set Affinity — Build() inserts the canonical
+// term automatically because VolumeClaimTemplates is non-empty.
+func TestExample_DefaultAffinityForVCT(t *testing.T) {
+	w := &Workflow{
+		GenerateName: "build-",
+		Entrypoint:   "main",
+		VolumeClaimTemplates: []PVCVolume{{
+			BaseVolume:  BaseVolume{Name: "scratch", MountPath: "/scratch"},
+			Size:        "1Gi",
+			AccessModes: []AccessMode{ReadWriteOnce},
+		}},
+		Templates: []Templatable{
+			&Container{Name: "main", Image: "alpine:3.18"},
+		},
+	}
+
+	y, err := w.ToYAML()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Default podAffinity is injected by Build().
+	if !strings.Contains(y, "podAffinity:") {
+		t.Errorf("YAML missing podAffinity injection:\n%s", y)
+	}
+	if !strings.Contains(y, "workflows.argoproj.io/workflow") {
+		t.Errorf("YAML missing canonical Argo workflow label:\n%s", y)
+	}
+	// GenerateName-only workflows use the Argo runtime template variable.
+	if !strings.Contains(y, "{{workflow.name}}") {
+		t.Errorf("YAML missing {{workflow.name}} template var:\n%s", y)
+	}
+	if !strings.Contains(y, "topologyKey: kubernetes.io/hostname") {
+		t.Errorf("YAML missing hostname topology:\n%s", y)
+	}
+}
+
+// TestExample_OptOutDefaultAffinity demonstrates the opt-out path: a
+// workflow that legitimately parallelizes across nodes (no shared PVC
+// semantics) sets DisableDefaultAffinity to suppress the default
+// injection.
+func TestExample_OptOutDefaultAffinity(t *testing.T) {
+	w := &Workflow{
+		Name:                   "fan-out",
+		Entrypoint:             "main",
+		DisableDefaultAffinity: true,
+		VolumeClaimTemplates: []PVCVolume{{
+			BaseVolume:  BaseVolume{Name: "scratch", MountPath: "/scratch"},
+			Size:        "1Gi",
+			AccessModes: []AccessMode{ReadWriteMany},
+		}},
+		Templates: []Templatable{
+			&Container{Name: "main", Image: "alpine:3.18"},
+		},
+	}
+
+	m, err := w.Build()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Spec.Affinity != nil {
+		t.Errorf("expected nil Affinity (opt-out), got %+v", m.Spec.Affinity)
 	}
 }

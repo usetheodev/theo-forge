@@ -15,7 +15,16 @@ func E(s string) Expr {
 	return Expr{repr: s}
 }
 
-// C creates a constant expression.
+// argoEscape escapes a literal value for safe embedding inside Argo's
+// single-quoted expression literals. Argo expression DSL semantics: ”
+// inside a single-quoted string represents one literal '. (T2.2 / ADR-005).
+func argoEscape(s string) string {
+	return strings.ReplaceAll(s, "'", "''")
+}
+
+// C creates a constant expression. String values are escaped for safe
+// interpolation into Argo expressions (SEC-002 / ADR-005). Callers that
+// already escaped their input MUST switch to RawC to avoid double-escaping.
 func C(v interface{}) Expr {
 	switch val := v.(type) {
 	case nil:
@@ -32,10 +41,17 @@ func C(v interface{}) Expr {
 	case float64:
 		return Expr{repr: fmt.Sprintf("%g", val)}
 	case string:
-		return Expr{repr: fmt.Sprintf("'%s'", val)}
+		return Expr{repr: fmt.Sprintf("'%s'", argoEscape(val))}
 	default:
 		return Expr{repr: fmt.Sprintf("%v", val)}
 	}
+}
+
+// RawC bypasses Argo string escaping. Use ONLY for trusted SDK-internal
+// callers whose strings are already valid Argo expression literals.
+// Arbitrary user input MUST use C() — RawC is a footgun if misused.
+func RawC(s string) Expr {
+	return Expr{repr: fmt.Sprintf("'%s'", s)}
 }
 
 // String returns the expression string.
@@ -48,9 +64,19 @@ func (e Expr) Tmpl() string {
 	return "{{" + e.repr + "}}"
 }
 
-// Eq returns the expression wrapped in Argo expression syntax {{=...}}.
-func (e Expr) Eq() string {
+// Render returns the expression wrapped in Argo expression syntax {{=...}}.
+// This is the rendered form consumers feed to fields that accept Argo
+// expression strings (e.g., Task.When).
+func (e Expr) Render() string {
 	return "{{=" + e.repr + "}}"
+}
+
+// Eq is the legacy name for Render.
+//
+// Deprecated: rename collided with Equals(); use Render() instead.
+// Will be removed in v0.6.0. (T4.4 / arch-expr-naming-collision).
+func (e Expr) Eq() string {
+	return e.Render()
 }
 
 // Attr accesses a field on the expression.
@@ -85,128 +111,156 @@ func (e Expr) SliceTo(end int) Expr {
 
 // --- Comparison operators ---
 
+// Equals is the method.
 func (e Expr) Equals(other Expr) Expr {
 	return Expr{repr: fmt.Sprintf("%s == %s", e.repr, other.repr)}
 }
 
+// NotEquals is the method.
 func (e Expr) NotEquals(other Expr) Expr {
 	return Expr{repr: fmt.Sprintf("%s != %s", e.repr, other.repr)}
 }
 
+// GT is the method.
 func (e Expr) GT(other Expr) Expr {
 	return Expr{repr: fmt.Sprintf("%s > %s", e.repr, other.repr)}
 }
 
+// GTE is the method.
 func (e Expr) GTE(other Expr) Expr {
 	return Expr{repr: fmt.Sprintf("%s >= %s", e.repr, other.repr)}
 }
 
+// LT is the method.
 func (e Expr) LT(other Expr) Expr {
 	return Expr{repr: fmt.Sprintf("%s < %s", e.repr, other.repr)}
 }
 
+// LTE is the method.
 func (e Expr) LTE(other Expr) Expr {
 	return Expr{repr: fmt.Sprintf("%s <= %s", e.repr, other.repr)}
 }
 
 // --- Arithmetic operators ---
 
+// Add is the method.
 func (e Expr) Add(other Expr) Expr {
 	return Expr{repr: fmt.Sprintf("%s + %s", e.repr, other.repr)}
 }
 
+// Sub is the method.
 func (e Expr) Sub(other Expr) Expr {
 	return Expr{repr: fmt.Sprintf("%s - %s", e.repr, other.repr)}
 }
 
+// Mul is the method.
 func (e Expr) Mul(other Expr) Expr {
 	return Expr{repr: fmt.Sprintf("%s * %s", e.repr, other.repr)}
 }
 
+// Div is the method.
 func (e Expr) Div(other Expr) Expr {
 	return Expr{repr: fmt.Sprintf("%s / %s", e.repr, other.repr)}
 }
 
+// Mod is the method.
 func (e Expr) Mod(other Expr) Expr {
 	return Expr{repr: fmt.Sprintf("%s %% %s", e.repr, other.repr)}
 }
 
+// Pow is the method.
 func (e Expr) Pow(other Expr) Expr {
 	return Expr{repr: fmt.Sprintf("%s ** %s", e.repr, other.repr)}
 }
 
 // --- Unary operators ---
 
+// Neg is the method.
 func (e Expr) Neg() Expr {
 	return Expr{repr: "-" + e.repr}
 }
 
+// Not is the method.
 func (e Expr) Not() Expr {
 	return Expr{repr: "!" + e.repr}
 }
 
 // --- Logical operators ---
 
+// And is the method.
 func (e Expr) And(other Expr) Expr {
 	return Expr{repr: fmt.Sprintf("%s && %s", e.repr, other.repr)}
 }
 
+// OrExpr is the method.
 func (e Expr) OrExpr(other Expr) Expr {
 	return Expr{repr: fmt.Sprintf("%s || %s", e.repr, other.repr)}
 }
 
 // --- String methods ---
 
+// Contains is the method.
 func (e Expr) Contains(s string) Expr {
-	return Expr{repr: fmt.Sprintf("%s.contains('%s')", e.repr, s)}
+	return Expr{repr: fmt.Sprintf("%s.contains('%s')", e.repr, argoEscape(s))}
 }
 
+// Matches is the method.
 func (e Expr) Matches(pattern string) Expr {
-	return Expr{repr: fmt.Sprintf("%s.matches('%s')", e.repr, pattern)}
+	return Expr{repr: fmt.Sprintf("%s.matches('%s')", e.repr, argoEscape(pattern))}
 }
 
+// StartsWith is the method.
 func (e Expr) StartsWith(prefix string) Expr {
-	return Expr{repr: fmt.Sprintf("%s.startsWith('%s')", e.repr, prefix)}
+	return Expr{repr: fmt.Sprintf("%s.startsWith('%s')", e.repr, argoEscape(prefix))}
 }
 
+// EndsWith is the method.
 func (e Expr) EndsWith(suffix string) Expr {
-	return Expr{repr: fmt.Sprintf("%s.endsWith('%s')", e.repr, suffix)}
+	return Expr{repr: fmt.Sprintf("%s.endsWith('%s')", e.repr, argoEscape(suffix))}
 }
 
+// Length is the method.
 func (e Expr) Length() Expr {
 	return Expr{repr: e.repr + ".length()"}
 }
 
 // --- Conversion methods ---
 
+// ToJSON is the method.
 func (e Expr) ToJSON() Expr {
 	return Expr{repr: e.repr + ".toJson()"}
 }
 
+// AsFloat is the method.
 func (e Expr) AsFloat() Expr {
 	return Expr{repr: e.repr + ".asFloat()"}
 }
 
+// AsInt is the method.
 func (e Expr) AsInt() Expr {
 	return Expr{repr: e.repr + ".asInt()"}
 }
 
+// AsStr is the method.
 func (e Expr) AsStr() Expr {
 	return Expr{repr: e.repr + ".string()"}
 }
 
 // --- Ternary ---
 
+// Check is the method.
 func (e Expr) Check(ifTrue, ifFalse Expr) Expr {
 	return Expr{repr: fmt.Sprintf("%s ? %s : %s", e.repr, ifTrue.repr, ifFalse.repr)}
 }
 
 // --- Collection methods ---
 
+// Map is the method.
 func (e Expr) Map(lambda Expr) Expr {
 	return Expr{repr: fmt.Sprintf("%s.map(%s)", e.repr, lambda.repr)}
 }
 
+// Filter is the method.
 func (e Expr) Filter(lambda Expr) Expr {
 	return Expr{repr: fmt.Sprintf("%s.filter(%s)", e.repr, lambda.repr)}
 }
@@ -219,25 +273,36 @@ var Sprig = sprigNS{}
 type sprigNS struct{}
 
 func (sprigNS) Trim(s string) Expr {
-	return Expr{repr: fmt.Sprintf("sprig.trim('%s')", s)}
+	return Expr{repr: fmt.Sprintf("sprig.trim('%s')", argoEscape(s))}
 }
 
 func (sprigNS) Upper(s string) Expr {
-	return Expr{repr: fmt.Sprintf("sprig.upper('%s')", s)}
+	return Expr{repr: fmt.Sprintf("sprig.upper('%s')", argoEscape(s))}
 }
 
 func (sprigNS) Lower(s string) Expr {
-	return Expr{repr: fmt.Sprintf("sprig.lower('%s')", s)}
+	return Expr{repr: fmt.Sprintf("sprig.lower('%s')", argoEscape(s))}
 }
 
+// Replace returns sprig.replace(old, new, s). The parameter named `new`
+// shadows the Go builtin function; kept for backward-compatible Sprig
+// idiom alignment.
+//
+// name; renaming would break the call site documentation contract.
+//
+//nolint:revive,predeclared,gocritic // `new` matches the Sprig template parameter
 func (sprigNS) Replace(old, new, s string) Expr {
-	return Expr{repr: fmt.Sprintf("sprig.replace('%s', '%s', '%s')", old, new, s)}
+	return Expr{repr: fmt.Sprintf("sprig.replace('%s', '%s', '%s')", argoEscape(old), argoEscape(new), argoEscape(s))}
 }
 
 // --- Global expression root ---
 
 // G is the global expression root.
-// Usage: G.Attr("tasks").Attr("task-a").Attr("outputs").Attr("result")
+//
+// Deprecated: G produces malformed expressions because the empty repr
+// leads to a leading dot (".tasks.x" instead of "tasks.x"). Use the
+// scoped roots directly: [Tasks], [Steps], [Inputs], [Outputs],
+// [Workflow]. G will be removed in v0.6.0. (T4.10 / code-p4-expr-G-broken).
 var G = Expr{repr: ""}
 
 // Tasks returns a tasks expression root.

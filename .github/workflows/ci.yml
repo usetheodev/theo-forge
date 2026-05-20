@@ -6,9 +6,16 @@ on:
   pull_request:
     branches: [main, develop]
 
+# Single source of truth: the Makefile defines every quality gate.
+# CI installs the toolchain, then delegates to `make verify`. Any change
+# to gate definitions, thresholds, or tooling lives in the Makefile +
+# .golangci.yml + .testcoverage.yml — NOT in this file.
+#
+# See docs/QUALITY-GATES.md for the gate catalog + rationale.
+
 jobs:
-  test:
-    name: Test
+  verify:
+    name: Quality Gates (make verify)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -20,62 +27,16 @@ jobs:
           go-version: "1.25"
           cache: true
 
-      - name: Download dependencies
-        run: go mod download
+      - name: Install quality-gate toolchain
+        run: make install-tools
 
-      - name: Build
-        run: go build ./...
+      - name: make verify (lint + race + coverage + vuln scans)
+        run: make verify
 
-      - name: Vet
-        run: go vet ./...
-
-      - name: Test with coverage
-        run: go test -count=1 -race -coverprofile=coverage.out -covermode=atomic ./...
-
-      - name: Upload coverage
-        if: github.event_name == 'push'
+      - name: Upload coverage profile
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: coverage
           path: coverage.out
-
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.25"
-          cache: true
-
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v7
-        with:
-          version: latest
-
-  security:
-    name: Security
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.25"
-          cache: true
-
-      - name: govulncheck
-        uses: golang/govulncheck-action@v1
-        with:
-          go-version-input: "1.25"
-
-      - name: gosec
-        uses: securego/gosec@master
-        with:
-          args: -exclude-dir=testdata ./...
+          retention-days: 30
