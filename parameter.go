@@ -97,11 +97,58 @@ func (p Parameter) AsOutput() (model.ParameterModel, error) {
 // --- Retry ---
 
 // RetryStrategy configures retry behavior for templates.
+//
+// For the common "retry-on-failure with exponential backoff + skip-OOM"
+// pattern used by build pipelines, prefer the factory [NewRetryOnFailure]
+// over a struct literal — it sets the standard fields and the
+// `asInt(lastRetry.exitCode) != 137` skip-OOM expression in one call.
 type RetryStrategy struct {
 	Limit       *int
 	RetryPolicy RetryPolicy
 	Backoff     *Backoff
 	Expression  string
+}
+
+// NewRetryOnFailure returns a RetryStrategy preconfigured for the
+// common build-pipeline retry pattern:
+//
+//   - RetryPolicy = OnFailure (retries failed pods, not Errored ones)
+//   - Backoff with exponential parameters (initial, factor, max)
+//   - Expression skips retry on exit code 137 (SIGKILL via OOM) —
+//     retrying an OOM-killed pod with the same memory limits will
+//     fail identically, so wasting cluster cycles is pointless.
+//
+// Parameters mirror Argo Workflows' retryStrategy.backoff shape:
+//
+//	limit       — maximum number of retries (typically 2 or 3).
+//	initial     — first backoff sleep, e.g. "10s".
+//	factor      — multiplier per attempt, e.g. "2" (becomes 10s → 20s → 40s).
+//	maxDuration — cap on total backoff, e.g. "120s".
+//
+// Example:
+//
+//	&forge.Container{
+//		Name:          "build",
+//		Image:         "buildkit:v0.18",
+//		RetryStrategy: forge.NewRetryOnFailure(2, "10s", "2", "120s"),
+//	}
+//
+// Consumers that need a different policy (Always / OnError /
+// OnTransientError) or a different skip expression should construct
+// a [RetryStrategy] struct literal directly.
+func NewRetryOnFailure(limit int, initial, factor, maxDuration string) *RetryStrategy {
+	return &RetryStrategy{
+		Limit:       Ptr(limit),
+		RetryPolicy: RetryPolicy("OnFailure"),
+		Backoff: &Backoff{
+			Duration:    initial,
+			Factor:      factor,
+			MaxDuration: maxDuration,
+		},
+		// Exit code 137 = SIGKILL via OOM. Retrying with same memory
+		// limits is guaranteed to fail again — skip it.
+		Expression: `asInt(lastRetry.exitCode) != 137`,
+	}
 }
 
 // Build converts RetryStrategy to its serializable model.

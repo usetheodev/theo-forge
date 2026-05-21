@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- `NewRetryOnFailure(limit, initial, factor, maxDuration)` factory in `parameter.go` — preconfigured RetryStrategy with OnFailure policy, exponential Backoff, and skip-OOM expression (`asInt(lastRetry.exitCode) != 137`). Eliminates duplicated retry-strategy boilerplate in build pipelines (forge-contributions-abc-plan T1.1 / ADR-001).
+- `ResourcesTiny()`, `ResourcesSmall()`, `ResourcesMedium()` factories in `types.go` — T-shirt-size `*ResourceRequirements` presets (50m/32Mi, 100m/128Mi, 500m/512Mi). Each call returns a freshly-allocated struct safe to mutate (forge-contributions-abc-plan T1.2 / ADR-002).
+- 3 golden YAML fixtures in `testdata/resources-{tiny,small,medium}.golden.yaml` — wire-format snapshot of each preset; updated via `-update-golden` if defaults ever change (T1.2 / ADR-005).
 - `model.IntOrString` (T4.3 / ADR-002) replaces `interface{}` in `PodDisruptionBudget.MinAvailable/MaxUnavailable`, `HTTPGetAction.Port`, `TCPSocketAction.Port`. Mirrors `k8s.io/apimachinery/pkg/util/intstr.IntOrString` semantics locally.
 - `sharedTemplateFields` helper (T4.1) — Script gains `EnvFrom`, `Ports`, `SecurityContext`, `ReadinessProbe`, `LivenessProbe`, `InitContainers`, `Parallelism`, `ArchiveLocation` (previously Container-only).
 - Composable hook system (T8.2): `RegisterNamedTemplateHook`, `RemoveTemplateHook`, `DispatchNamedTemplateHooks` (+ workflow counterparts) — named, removable, fallible hooks with error short-circuit.
