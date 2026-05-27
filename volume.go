@@ -241,3 +241,143 @@ func (v NFSVolume) BuildVolume() (model.VolumeModel, error) {
 		},
 	}, nil
 }
+
+// --- Projected (with ServiceAccountToken support) ---
+
+// ProjectedVolume is a volume that aggregates multiple sources (ServiceAccountToken,
+// ConfigMap, Secret, DownwardAPI) into a single mount point.
+//
+// Primary use case in Theo: Sigstore cosign keyless OIDC signing.
+// Each build worker pod mounts a SA token with audience="sigstore" so cosign
+// can present it to Fulcio for short-lived signing certificate issuance,
+// instead of using a long-lived static key.
+//
+// Example (SA token for Sigstore Fulcio):
+//
+//	forge.ProjectedVolume{
+//	    BaseVolume: forge.BaseVolume{Name: "sigstore-token", MountPath: "/var/run/secrets/sigstore"},
+//	    Sources: []forge.VolumeProjection{
+//	        {ServiceAccountToken: &forge.ServiceAccountTokenProjection{
+//	            Audience: "sigstore",
+//	            Path:     "token",
+//	            ExpirationSeconds: forge.Ptr(int64(600)),
+//	        }},
+//	    },
+//	}
+type ProjectedVolume struct {
+	BaseVolume
+	// DefaultMode is the optional default mode bits for files (octal).
+	DefaultMode *int32
+	// Sources is the list of volume projections aggregated into this mount.
+	// Each entry MUST set exactly one of ServiceAccountToken/ConfigMap/Secret/DownwardAPI.
+	Sources []VolumeProjection
+}
+
+// VolumeProjection is one source within a ProjectedVolume.
+// Exactly one of ServiceAccountToken, ConfigMap, Secret, DownwardAPI must be set.
+type VolumeProjection struct {
+	ServiceAccountToken *ServiceAccountTokenProjection
+	ConfigMap           *ConfigMapProjection
+	Secret              *SecretProjection
+	DownwardAPI         *DownwardAPIProjection
+}
+
+// ServiceAccountTokenProjection requests a SA token from kubelet, written to
+// the volume at the given Path. Audience MUST match Fulcio's expected
+// audience for Sigstore keyless (typically "sigstore").
+type ServiceAccountTokenProjection struct {
+	// Audience is the intended audience of the token. For Sigstore, "sigstore".
+	Audience string
+	// ExpirationSeconds is the requested duration of validity (min 600, default 3600).
+	// Kubelet rotates the token if older than 80% of expiration.
+	ExpirationSeconds *int64
+	// Path is the file path relative to the mount where the token is written.
+	Path string
+}
+
+// ConfigMapProjection projects a ConfigMap into the volume. Reuses
+// ConfigMapVolumeModel — items/optional/defaultMode fields supported via
+// underlying ConfigMapVolumeModel.
+type ConfigMapProjection struct {
+	Name        string
+	DefaultMode *int32
+	Optional    *bool
+}
+
+// SecretProjection projects a Secret into the volume.
+type SecretProjection struct {
+	SecretName  string
+	DefaultMode *int32
+	Optional    *bool
+}
+
+// DownwardAPIProjection projects downwardAPI fields into the volume.
+type DownwardAPIProjection struct {
+	DefaultMode *int32
+}
+
+// BuildVolume implements VolumeBuilder for ProjectedVolume.
+func (v ProjectedVolume) BuildVolume() (model.VolumeModel, error) {
+	if err := v.validate(); err != nil {
+		return model.VolumeModel{}, err
+	}
+	sources := make([]model.VolumeProjectionModel, 0, len(v.Sources))
+	for i, s := range v.Sources {
+		count := 0
+		if s.ServiceAccountToken != nil {
+			count++
+		}
+		if s.ConfigMap != nil {
+			count++
+		}
+		if s.Secret != nil {
+			count++
+		}
+		if s.DownwardAPI != nil {
+			count++
+		}
+		if count != 1 {
+			return model.VolumeModel{}, fmt.Errorf("projected volume %q source[%d]: exactly one of ServiceAccountToken/ConfigMap/Secret/DownwardAPI must be set (got %d)", v.Name, i, count)
+		}
+
+		var proj model.VolumeProjectionModel
+		if s.ServiceAccountToken != nil {
+			if s.ServiceAccountToken.Path == "" {
+				return model.VolumeModel{}, fmt.Errorf("projected volume %q source[%d] ServiceAccountToken: Path is required", v.Name, i)
+			}
+			proj.ServiceAccountToken = &model.ServiceAccountTokenProjectionModel{
+				Audience:          s.ServiceAccountToken.Audience,
+				ExpirationSeconds: s.ServiceAccountToken.ExpirationSeconds,
+				Path:              s.ServiceAccountToken.Path,
+			}
+		}
+		if s.ConfigMap != nil {
+			proj.ConfigMap = &model.ConfigMapVolumeModel{
+				Name:        s.ConfigMap.Name,
+				DefaultMode: s.ConfigMap.DefaultMode,
+				Optional:    s.ConfigMap.Optional,
+			}
+		}
+		if s.Secret != nil {
+			proj.Secret = &model.SecretVolumeModel{
+				SecretName:  s.Secret.SecretName,
+				DefaultMode: s.Secret.DefaultMode,
+				Optional:    s.Secret.Optional,
+			}
+		}
+		if s.DownwardAPI != nil {
+			proj.DownwardAPI = &model.DownwardAPIVolumeModel{
+				DefaultMode: s.DownwardAPI.DefaultMode,
+			}
+		}
+		sources = append(sources, proj)
+	}
+
+	return model.VolumeModel{
+		Name: v.Name,
+		Projected: &model.ProjectedVolumeModel{
+			DefaultMode: v.DefaultMode,
+			Sources:     sources,
+		},
+	}, nil
+}
