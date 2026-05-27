@@ -58,8 +58,41 @@ type DownwardAPIVolumeModel struct {
 }
 
 // ProjectedVolumeModel is the serializable projected volume source.
+// Sources mirrors K8s core/v1 ProjectedVolumeSource.Sources — list of volume
+// projections (ServiceAccountToken, ConfigMap, Secret, DownwardAPI).
+//
+// Common use case (Sigstore cosign keyless OIDC): mount a SA token with
+// audience="sigstore" so cosign can present it to Fulcio for short-lived
+// signing certificate issuance. See Sigstore "keyless signing" docs.
 type ProjectedVolumeModel struct {
-	DefaultMode *int32 `json:"defaultMode,omitempty" yaml:"defaultMode,omitempty"`
+	DefaultMode *int32                  `json:"defaultMode,omitempty" yaml:"defaultMode,omitempty"`
+	Sources     []VolumeProjectionModel `json:"sources,omitempty" yaml:"sources,omitempty"`
+}
+
+// VolumeProjectionModel is one source within a ProjectedVolume.
+// Exactly one of ServiceAccountToken, ConfigMap, Secret, DownwardAPI must
+// be set (K8s core/v1 VolumeProjection oneOf).
+type VolumeProjectionModel struct {
+	ServiceAccountToken *ServiceAccountTokenProjectionModel `json:"serviceAccountToken,omitempty" yaml:"serviceAccountToken,omitempty"`
+	ConfigMap           *ConfigMapVolumeModel               `json:"configMap,omitempty" yaml:"configMap,omitempty"`
+	Secret              *SecretVolumeModel                  `json:"secret,omitempty" yaml:"secret,omitempty"`
+	DownwardAPI         *DownwardAPIVolumeModel             `json:"downwardAPI,omitempty" yaml:"downwardAPI,omitempty"`
+}
+
+// ServiceAccountTokenProjectionModel mirrors K8s core/v1
+// ServiceAccountTokenProjection. Critical for Sigstore keyless OIDC:
+// Audience MUST match Fulcio's expected audience (typically "sigstore").
+type ServiceAccountTokenProjectionModel struct {
+	// Audience is the intended audience of the token. Defaults to apiserver
+	// identifier if empty. For Sigstore keyless, set to "sigstore".
+	Audience string `json:"audience,omitempty" yaml:"audience,omitempty"`
+	// ExpirationSeconds is the requested duration of validity (seconds).
+	// Kubelet rotates the token if older than 80% of expiration.
+	// Minimum value is 600 (10min); defaults to 1h if unset.
+	ExpirationSeconds *int64 `json:"expirationSeconds,omitempty" yaml:"expirationSeconds,omitempty"`
+	// Path is the file path relative to the volume mount, where the token
+	// file is written. Required.
+	Path string `json:"path" yaml:"path"`
 }
 
 // VolumeMountModel is the serializable representation of a K8s VolumeMount.

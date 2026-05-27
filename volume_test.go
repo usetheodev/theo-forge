@@ -221,3 +221,137 @@ func TestNFSVolumeBuild(t *testing.T) {
 		t.Errorf("server = %q", vol.NFS.Server)
 	}
 }
+
+// --- ProjectedVolume tests ---
+
+func TestProjectedVolume_ServiceAccountToken(t *testing.T) {
+	expSeconds := int64(600)
+	v := ProjectedVolume{
+		BaseVolume: BaseVolume{Name: "sigstore-token", MountPath: "/var/run/secrets/sigstore"},
+		Sources: []VolumeProjection{
+			{ServiceAccountToken: &ServiceAccountTokenProjection{
+				Audience:          "sigstore",
+				Path:              "token",
+				ExpirationSeconds: &expSeconds,
+			}},
+		},
+	}
+	vol, err := v.BuildVolume()
+	if err != nil {
+		t.Fatalf("BuildVolume failed: %v", err)
+	}
+	if vol.Name != "sigstore-token" {
+		t.Errorf("name = %q, want sigstore-token", vol.Name)
+	}
+	if vol.Projected == nil {
+		t.Fatal("expected Projected to be set")
+	}
+	if len(vol.Projected.Sources) != 1 {
+		t.Fatalf("sources len = %d, want 1", len(vol.Projected.Sources))
+	}
+	sat := vol.Projected.Sources[0].ServiceAccountToken
+	if sat == nil {
+		t.Fatal("expected ServiceAccountToken source to be set")
+	}
+	if sat.Audience != "sigstore" {
+		t.Errorf("audience = %q, want sigstore", sat.Audience)
+	}
+	if sat.Path != "token" {
+		t.Errorf("path = %q, want token", sat.Path)
+	}
+	if sat.ExpirationSeconds == nil || *sat.ExpirationSeconds != 600 {
+		t.Errorf("ExpirationSeconds = %v, want 600", sat.ExpirationSeconds)
+	}
+}
+
+func TestProjectedVolume_ServiceAccountToken_PathRequired(t *testing.T) {
+	v := ProjectedVolume{
+		BaseVolume: BaseVolume{Name: "sigstore-token", MountPath: "/var/run/secrets/sigstore"},
+		Sources: []VolumeProjection{
+			{ServiceAccountToken: &ServiceAccountTokenProjection{Audience: "sigstore"}},
+		},
+	}
+	if _, err := v.BuildVolume(); err == nil {
+		t.Fatal("expected error: Path is required")
+	}
+}
+
+func TestProjectedVolume_ExactlyOneSource(t *testing.T) {
+	// Zero sources in projection → error
+	v := ProjectedVolume{
+		BaseVolume: BaseVolume{Name: "x", MountPath: "/x"},
+		Sources:    []VolumeProjection{{}},
+	}
+	if _, err := v.BuildVolume(); err == nil {
+		t.Fatal("expected error: exactly one source must be set (got 0)")
+	}
+
+	// Two sources in same projection → error
+	v2 := ProjectedVolume{
+		BaseVolume: BaseVolume{Name: "x", MountPath: "/x"},
+		Sources: []VolumeProjection{{
+			ServiceAccountToken: &ServiceAccountTokenProjection{Audience: "a", Path: "t"},
+			ConfigMap:           &ConfigMapProjection{Name: "cm"},
+		}},
+	}
+	if _, err := v2.BuildVolume(); err == nil {
+		t.Fatal("expected error: exactly one source must be set (got 2)")
+	}
+}
+
+func TestProjectedVolume_NameRequired(t *testing.T) {
+	v := ProjectedVolume{
+		Sources: []VolumeProjection{
+			{ServiceAccountToken: &ServiceAccountTokenProjection{Audience: "sigstore", Path: "token"}},
+		},
+	}
+	if _, err := v.BuildVolume(); err == nil {
+		t.Fatal("expected error: volume name cannot be empty")
+	}
+}
+
+func TestProjectedVolume_MultipleSources(t *testing.T) {
+	v := ProjectedVolume{
+		BaseVolume: BaseVolume{Name: "multi", MountPath: "/multi"},
+		Sources: []VolumeProjection{
+			{ServiceAccountToken: &ServiceAccountTokenProjection{Audience: "sigstore", Path: "token"}},
+			{ConfigMap: &ConfigMapProjection{Name: "extra-config"}},
+			{Secret: &SecretProjection{SecretName: "extra-secret"}},
+		},
+	}
+	vol, err := v.BuildVolume()
+	if err != nil {
+		t.Fatalf("BuildVolume failed: %v", err)
+	}
+	if len(vol.Projected.Sources) != 3 {
+		t.Fatalf("sources len = %d, want 3", len(vol.Projected.Sources))
+	}
+	if vol.Projected.Sources[0].ServiceAccountToken == nil {
+		t.Error("expected sources[0] to be SAT")
+	}
+	if vol.Projected.Sources[1].ConfigMap == nil {
+		t.Error("expected sources[1] to be ConfigMap")
+	}
+	if vol.Projected.Sources[2].Secret == nil {
+		t.Error("expected sources[2] to be Secret")
+	}
+}
+
+func TestProjectedVolume_VolumeMount(t *testing.T) {
+	v := ProjectedVolume{
+		BaseVolume: BaseVolume{Name: "sigstore-token", MountPath: "/var/run/secrets/sigstore", ReadOnly: true},
+		Sources: []VolumeProjection{
+			{ServiceAccountToken: &ServiceAccountTokenProjection{Audience: "sigstore", Path: "token"}},
+		},
+	}
+	vm := v.BuildVolumeMount()
+	if vm.Name != "sigstore-token" {
+		t.Errorf("mount name = %q", vm.Name)
+	}
+	if vm.MountPath != "/var/run/secrets/sigstore" {
+		t.Errorf("mount path = %q", vm.MountPath)
+	}
+	if !vm.ReadOnly {
+		t.Error("expected ReadOnly=true")
+	}
+}
