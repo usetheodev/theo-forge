@@ -65,7 +65,7 @@ type DownwardAPIVolumeModel struct {
 // audience="sigstore" so cosign can present it to Fulcio for short-lived
 // signing certificate issuance. See Sigstore "keyless signing" docs.
 type ProjectedVolumeModel struct {
-	DefaultMode *int32                 `json:"defaultMode,omitempty" yaml:"defaultMode,omitempty"`
+	DefaultMode *int32                  `json:"defaultMode,omitempty" yaml:"defaultMode,omitempty"`
 	Sources     []VolumeProjectionModel `json:"sources,omitempty" yaml:"sources,omitempty"`
 }
 
