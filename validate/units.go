@@ -12,8 +12,8 @@ import (
 )
 
 var (
-	binaryUnitRe  = regexp.MustCompile(`^([0-9]*\.?[0-9]+)(Ki|Mi|Gi|Ti|Pi|Ei)?$`)
-	decimalUnitRe = regexp.MustCompile(`^([0-9]*\.?[0-9]+)(m|k|M|G|T|P|E)?$`)
+	binaryUnitRe  = regexp.MustCompile(`^(\d*\.?\d+)(Ki|Mi|Gi|Ti|Pi|Ei)?$`)
+	decimalUnitRe = regexp.MustCompile(`^(\d*\.?\d+)([mkMGTPE])?$`)
 )
 
 // BinaryUnit validates a binary resource unit (memory: Ki, Mi, Gi, Ti, Pi, Ei).
@@ -96,6 +96,11 @@ func ConvertDecimalUnit(s string) (float64, error) {
 }
 
 // ResourceRequirements checks that requests don't exceed limits and values are positive.
+// Validation enumerates 3 resources × 2 directions (request/limit) with per-resource
+// error messages. Splitting into per-resource validators is tracked for v0.6.0 once
+// IntOrString lands and we revisit this package's API.
+//
+//nolint:gocognit,gocyclo,nestif,cyclop // see comment above.
 func ResourceRequirements(r model.ResourceRequirements) error {
 	// Validate CPU
 	if r.Requests.CPU != "" {

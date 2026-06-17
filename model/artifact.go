@@ -19,7 +19,7 @@ type ArtifactModel struct {
 	Azure          *AzureArtifactModel `json:"azure,omitempty" yaml:"azure,omitempty"`
 	OSS            *OSSArtifactModel   `json:"oss,omitempty" yaml:"oss,omitempty"`
 	HDFS           *HDFSArtifactModel  `json:"hdfs,omitempty" yaml:"hdfs,omitempty"`
-	Plugin         *PluginModel         `json:"plugin,omitempty" yaml:"plugin,omitempty"`
+	Plugin         *PluginModel        `json:"plugin,omitempty" yaml:"plugin,omitempty"`
 	Artifactory    *ArtifactoryModel   `json:"artifactory,omitempty" yaml:"artifactory,omitempty"`
 	ArtifactGC     *ArtifactGCSpec     `json:"artifactGC,omitempty" yaml:"artifactGC,omitempty"`
 	Deleted        *bool               `json:"deleted,omitempty" yaml:"deleted,omitempty"`
@@ -28,9 +28,9 @@ type ArtifactModel struct {
 
 // ArtifactoryModel is an Artifactory artifact source.
 type ArtifactoryModel struct {
-	URL                string              `json:"url" yaml:"url"`
-	UsernameSecret     *SecretKeySelector  `json:"usernameSecret,omitempty" yaml:"usernameSecret,omitempty"`
-	PasswordSecret     *SecretKeySelector  `json:"passwordSecret,omitempty" yaml:"passwordSecret,omitempty"`
+	URL            string             `json:"url" yaml:"url"`
+	UsernameSecret *SecretKeySelector `json:"usernameSecret,omitempty" yaml:"usernameSecret,omitempty"`
+	PasswordSecret *SecretKeySelector `json:"passwordSecret,omitempty" yaml:"passwordSecret,omitempty"`
 }
 
 // PluginModel represents an artifact plugin.

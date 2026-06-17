@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="490" height="330" style="font-family:sans-serif">
+  <text x="245.0" y="28" text-anchor="middle" font-size="15" font-weight="bold">Findings by Severity</text>
+  <line x1="60" y1="250" x2="470" y2="250" stroke="#eee" stroke-width="1"/>
+  <text x="52" y="254" text-anchor="end" font-size="11" fill="#666">0</text>
+  <line x1="60" y1="200" x2="470" y2="200" stroke="#eee" stroke-width="1"/>
+  <text x="52" y="204" text-anchor="end" font-size="11" fill="#666">8</text>
+  <line x1="60" y1="150" x2="470" y2="150" stroke="#eee" stroke-width="1"/>
+  <text x="52" y="154" text-anchor="end" font-size="11" fill="#666">16</text>
+  <line x1="60" y1="100" x2="470" y2="100" stroke="#eee" stroke-width="1"/>
+  <text x="52" y="104" text-anchor="end" font-size="11" fill="#666">24</text>
+  <line x1="60" y1="50" x2="470" y2="50" stroke="#eee" stroke-width="1"/>
+  <text x="52" y="54" text-anchor="end" font-size="11" fill="#666">32</text>
+  <rect x="85" y="144" width="80" height="106" fill="#e53935" rx="3"/>
+  <text x="125.0" y="138" text-anchor="middle" font-size="13" font-weight="bold" fill="#e53935">17</text>
+  <text x="125.0" y="270" text-anchor="middle" font-size="13" fill="#333">HIGH</text>
+  <rect x="215" y="50" width="80" height="200" fill="#ff9800" rx="3"/>
+  <text x="255.0" y="44" text-anchor="middle" font-size="13" font-weight="bold" fill="#ff9800">32</text>
+  <text x="255.0" y="270" text-anchor="middle" font-size="13" fill="#333">MEDIUM</text>
+  <rect x="345" y="138" width="80" height="112" fill="#4caf50" rx="3"/>
+  <text x="385.0" y="132" text-anchor="middle" font-size="13" font-weight="bold" fill="#4caf50">18</text>
+  <text x="385.0" y="270" text-anchor="middle" font-size="13" fill="#333">LOW</text>
+</svg>

@@ -3,6 +3,7 @@ package forge
 import (
 	"fmt"
 
+	"github.com/usetheodev/theo-forge/config"
 	"github.com/usetheodev/theo-forge/model"
 	"github.com/usetheodev/theo-forge/serialize"
 )
@@ -29,6 +30,15 @@ type WorkflowTemplate struct {
 	Volumes []VolumeBuilder
 	// ServiceAccountName for the template.
 	ServiceAccountName string
+	// Config is the optional GlobalConfig instance used during Build()
+	// (T3.1 / ADR-001). When nil, falls back to the package singleton.
+	Config *config.GlobalConfig
+}
+
+// WithConfig attaches a GlobalConfig to this WorkflowTemplate. (T3.1 / ADR-001).
+func (wt *WorkflowTemplate) WithConfig(cfg *config.GlobalConfig) *WorkflowTemplate {
+	wt.Config = cfg
+	return wt
 }
 
 func (wt *WorkflowTemplate) validate() error {
@@ -52,7 +62,8 @@ func (wt *WorkflowTemplate) Build() (model.WorkflowTemplateModel, error) {
 		apiVersion = DefaultAPIVersion
 	}
 
-	templates, err := buildTemplateModels(wt.Templates)
+	cfg := resolveConfig(wt.Config)
+	templates, err := buildTemplateModels(wt.Templates, cfg)
 	if err != nil {
 		return model.WorkflowTemplateModel{}, err
 	}
@@ -78,7 +89,7 @@ func (wt *WorkflowTemplate) Build() (model.WorkflowTemplateModel, error) {
 		vols = append(vols, m)
 	}
 
-	return model.WorkflowTemplateModel{
+	wtModel := model.WorkflowTemplateModel{
 		APIVersion: apiVersion,
 		Kind:       "WorkflowTemplate",
 		Metadata: model.WorkflowMetadata{
@@ -94,7 +105,9 @@ func (wt *WorkflowTemplate) Build() (model.WorkflowTemplateModel, error) {
 			Volumes:            vols,
 			ServiceAccountName: wt.ServiceAccountName,
 		},
-	}, nil
+	}
+	cfg.DispatchWorkflowTemplateHooks(&wtModel)
+	return wtModel, nil
 }
 
 // ToYAML converts the WorkflowTemplate to YAML.
@@ -124,11 +137,22 @@ type ClusterWorkflowTemplate struct {
 	Arguments []Parameter
 	// ServiceAccountName for the template.
 	ServiceAccountName string
+	// Config is the optional GlobalConfig instance used during Build() (T3.1 / ADR-001).
+	Config *config.GlobalConfig
+}
+
+// WithConfig attaches a GlobalConfig to this ClusterWorkflowTemplate. (T3.1 / ADR-001).
+func (cwt *ClusterWorkflowTemplate) WithConfig(cfg *config.GlobalConfig) *ClusterWorkflowTemplate {
+	cwt.Config = cfg
+	return cwt
 }
 
 func (cwt *ClusterWorkflowTemplate) validate() error {
 	if cwt.Name == "" {
 		return fmt.Errorf("cluster workflow template name cannot be empty")
+	}
+	if len(cwt.Name) > NameLimit {
+		return fmt.Errorf("cluster workflow template name must be no more than %d characters", NameLimit)
 	}
 	return nil
 }
@@ -144,7 +168,8 @@ func (cwt *ClusterWorkflowTemplate) Build() (model.WorkflowTemplateModel, error)
 		apiVersion = DefaultAPIVersion
 	}
 
-	templates, err := buildTemplateModels(cwt.Templates)
+	cfg := resolveConfig(cwt.Config)
+	templates, err := buildTemplateModels(cwt.Templates, cfg)
 	if err != nil {
 		return model.WorkflowTemplateModel{}, err
 	}
@@ -161,7 +186,7 @@ func (cwt *ClusterWorkflowTemplate) Build() (model.WorkflowTemplateModel, error)
 		}
 	}
 
-	return model.WorkflowTemplateModel{
+	cwtModel := model.WorkflowTemplateModel{
 		APIVersion: apiVersion,
 		Kind:       "ClusterWorkflowTemplate",
 		Metadata: model.WorkflowMetadata{
@@ -175,7 +200,9 @@ func (cwt *ClusterWorkflowTemplate) Build() (model.WorkflowTemplateModel, error)
 			Arguments:          args,
 			ServiceAccountName: cwt.ServiceAccountName,
 		},
-	}, nil
+	}
+	cfg.DispatchWorkflowTemplateHooks(&cwtModel)
+	return cwtModel, nil
 }
 
 // ToYAML converts the ClusterWorkflowTemplate to YAML.
@@ -229,11 +256,22 @@ type CronWorkflow struct {
 	Arguments          []Parameter
 	Volumes            []VolumeBuilder
 	ServiceAccountName string
+	// Config is the optional GlobalConfig instance used during Build() (T3.1 / ADR-001).
+	Config *config.GlobalConfig
+}
+
+// WithConfig attaches a GlobalConfig to this CronWorkflow. (T3.1 / ADR-001).
+func (cw *CronWorkflow) WithConfig(cfg *config.GlobalConfig) *CronWorkflow {
+	cw.Config = cfg
+	return cw
 }
 
 func (cw *CronWorkflow) validate() error {
 	if cw.Name == "" {
 		return fmt.Errorf("cron workflow name cannot be empty")
+	}
+	if len(cw.Name) > NameLimit {
+		return fmt.Errorf("cron workflow name must be no more than %d characters", NameLimit)
 	}
 	if cw.Schedule == "" && len(cw.Schedules) == 0 {
 		return fmt.Errorf("cron workflow schedule or schedules must be set")
@@ -252,7 +290,8 @@ func (cw *CronWorkflow) Build() (model.CronWorkflowModel, error) {
 		apiVersion = DefaultAPIVersion
 	}
 
-	templates, err := buildTemplateModels(cw.Templates)
+	cfg := resolveConfig(cw.Config)
+	templates, err := buildTemplateModels(cw.Templates, cfg)
 	if err != nil {
 		return model.CronWorkflowModel{}, err
 	}
@@ -278,7 +317,7 @@ func (cw *CronWorkflow) Build() (model.CronWorkflowModel, error) {
 		vols = append(vols, m)
 	}
 
-	return model.CronWorkflowModel{
+	cwModel := model.CronWorkflowModel{
 		APIVersion: apiVersion,
 		Kind:       "CronWorkflow",
 		Metadata: model.WorkflowMetadata{
@@ -307,7 +346,9 @@ func (cw *CronWorkflow) Build() (model.CronWorkflowModel, error) {
 				ServiceAccountName: cw.ServiceAccountName,
 			},
 		},
-	}, nil
+	}
+	cfg.DispatchCronWorkflowHooks(&cwModel)
+	return cwModel, nil
 }
 
 // ToYAML converts the CronWorkflow to YAML.
@@ -327,4 +368,3 @@ func (cw *CronWorkflow) ToJSON() (string, error) {
 	}
 	return serialize.CronWorkflowToJSON(m)
 }
-

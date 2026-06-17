@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="700" height="450" style="font-family:sans-serif">
+  <defs><marker id="arrow" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#666"/></marker></defs>
+  <text x="350.0" y="24" text-anchor="middle" font-size="15" font-weight="bold">Component Dependency Graph</text>
+  <line x1="350" y1="88" x2="100" y2="182" stroke="#666" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="350" y1="88" x2="200" y2="322" stroke="#666" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="350" y1="88" x2="350" y2="322" stroke="#666" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="350" y1="88" x2="500" y2="322" stroke="#666" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="350" y1="88" x2="650" y2="322" stroke="#666" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="580" y1="218" x2="350" y2="322" stroke="#666" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="500" y1="358" x2="350" y2="322" stroke="#666" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <rect x="295" y="52" width="110" height="36" fill="#1565c0" rx="6" stroke="#333" stroke-width="1"/>
+  <text x="350" y="75" text-anchor="middle" font-size="11" fill="white" font-weight="bold">root-builder</text>
+  <rect x="45" y="182" width="110" height="36" fill="#6a1b9a" rx="6" stroke="#333" stroke-width="1"/>
+  <text x="100" y="205" text-anchor="middle" font-size="11" fill="white" font-weight="bold">pkg-config</text>
+  <rect x="525" y="182" width="110" height="36" fill="#1b5e20" rx="6" stroke="#333" stroke-width="1"/>
+  <text x="580" y="205" text-anchor="middle" font-size="11" fill="white" font-weight="bold">pkg-client</text>
+  <rect x="145" y="322" width="110" height="36" fill="#4a148c" rx="6" stroke="#333" stroke-width="1"/>
+  <text x="200" y="345" text-anchor="middle" font-size="11" fill="white" font-weight="bold">pkg-expr</text>
+  <rect x="295" y="322" width="110" height="36" fill="#0d47a1" rx="6" stroke="#333" stroke-width="1"/>
+  <text x="350" y="345" text-anchor="middle" font-size="11" fill="white" font-weight="bold">pkg-model</text>
+  <rect x="445" y="322" width="110" height="36" fill="#01579b" rx="6" stroke="#333" stroke-width="1"/>
+  <text x="500" y="345" text-anchor="middle" font-size="11" fill="white" font-weight="bold">pkg-serialize</text>
+  <rect x="595" y="322" width="110" height="36" fill="#1b5e20" rx="6" stroke="#333" stroke-width="1"/>
+  <text x="650" y="345" text-anchor="middle" font-size="11" fill="white" font-weight="bold">pkg-validate</text>
+  <text x="10" y="430" font-size="10" fill="#888">Arrows indicate dependency direction (A -> B means A depends on B)</text>
+  <text x="10" y="442" font-size="10" fill="#888">pkg-client and root-builder are independent; both depend on pkg-model</text>
+</svg>

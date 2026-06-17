@@ -52,9 +52,14 @@ func (s *Step) GetOutputArtifact(artifactName string) string {
 }
 
 // BuildStep builds the serializable step model.
+// Returns model.ErrTemplateAmbiguous / ErrTemplateMissing per the same rules
+// as Task.BuildDAGTask. (T3.3 / code-p4-template-ref-mutual-exclusion).
 func (s *Step) BuildStep() (model.StepModel, error) {
 	if s.Name == "" {
 		return model.StepModel{}, fmt.Errorf("step name cannot be empty")
+	}
+	if err := validateTemplateReference(s.Template, s.TemplateRef, s.Inline, "step "+s.Name); err != nil {
+		return model.StepModel{}, err
 	}
 
 	var args *model.ArgumentsModel
@@ -187,6 +192,7 @@ func (s *Steps) AddParallelGroup(steps ...*Step) error {
 	return nil
 }
 
+// GetName is the method.
 func (s *Steps) GetName() string {
 	return s.Name
 }

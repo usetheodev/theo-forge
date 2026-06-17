@@ -3,6 +3,7 @@ package forge
 import (
 	"fmt"
 
+	"github.com/usetheodev/theo-forge/config"
 	"github.com/usetheodev/theo-forge/model"
 	"github.com/usetheodev/theo-forge/serialize"
 )
@@ -91,7 +92,16 @@ type Workflow struct {
 	// SecurityContext holds pod-level security attributes.
 	SecurityContext *model.PodSecurityContext
 	// Affinity defines scheduling constraints for workflow pods.
+	// When nil and VolumeClaimTemplates is non-empty (and
+	// DisableDefaultAffinity is false), Build() injects a default
+	// podAffinity that co-locates all workflow pods on the same node.
+	// See DefaultPodAffinityFor.
 	Affinity *model.Affinity
+	// DisableDefaultAffinity opts out of the default podAffinity
+	// injection performed by Build() when VolumeClaimTemplates is
+	// non-empty. Has no effect when Affinity is already set or when
+	// VolumeClaimTemplates is empty.
+	DisableDefaultAffinity bool
 	// AutomountServiceAccountToken controls SA token mounting.
 	AutomountServiceAccountToken *bool
 	// WorkflowTemplateRef references a WorkflowTemplate instead of inline templates.
@@ -102,6 +112,18 @@ type Workflow struct {
 	ArtifactRepositoryRef *model.ArtifactRepositoryRef
 	// TemplateDefaults defines default values for all templates.
 	TemplateDefaults *model.TemplateDefaults
+	// Config is the optional GlobalConfig instance used during Build().
+	// When nil, Build() falls back to config.GetGlobal() (package singleton).
+	// Set via WithConfig() to enable hook isolation per T3.1 / ADR-001.
+	Config *config.GlobalConfig
+}
+
+// WithConfig attaches a GlobalConfig instance to this Workflow. Build()
+// dispatches hooks and applies scalar defaults through cfg rather than the
+// package singleton. Returns w for chaining. (T3.1 / ADR-001).
+func (w *Workflow) WithConfig(cfg *config.GlobalConfig) *Workflow {
+	w.Config = cfg
+	return w
 }
 
 func (w *Workflow) validate() error {
@@ -114,7 +136,22 @@ func (w *Workflow) validate() error {
 	if w.Name == "" && w.GenerateName == "" {
 		return fmt.Errorf("either name or generateName must be set")
 	}
+	// T3.6: Entrypoint is required whenever Templates are defined.
+	// A workflow with templates but no entrypoint produces invalid YAML
+	// (Argo runtime rejects). WorkflowTemplateRef workflows are exempt
+	// because the referenced WorkflowTemplate provides the entrypoint.
+	if len(w.Templates) > 0 && w.Entrypoint == "" && w.WorkflowTemplateRef == nil {
+		return fmt.Errorf("workflow %q: %w", w.effectiveName(), model.ErrEntrypointMissing)
+	}
 	return nil
+}
+
+// effectiveName returns Name or GenerateName for error messages.
+func (w *Workflow) effectiveName() string {
+	if w.Name != "" {
+		return w.Name
+	}
+	return w.GenerateName
 }
 
 func (w *Workflow) buildArguments() (*model.ArgumentsModel, error) {
@@ -151,9 +188,9 @@ func (w *Workflow) buildVolumes() ([]model.VolumeModel, error) {
 		}
 		vols = append(vols, m)
 	}
-	if len(vols) == 0 {
-		return nil, nil
-	}
+	// T4.7: the post-loop `len(vols)==0` check is unreachable — we just
+	// returned early when w.Volumes was empty and otherwise appended one
+	// entry per input. Removed (code-p4-dead-len-check).
 	return vols, nil
 }
 
@@ -169,10 +206,31 @@ func (w *Workflow) buildVolumeClaimTemplates() ([]model.PVCModel, error) {
 		}
 		pvcs = append(pvcs, m)
 	}
-	if len(pvcs) == 0 {
-		return nil, nil
-	}
+	// T4.7: same — post-loop len(pvcs)==0 was unreachable.
 	return pvcs, nil
+}
+
+// resolveAffinity returns the affinity that should land on
+// WorkflowSpec.Affinity. Precedence:
+//
+//  1. User-supplied Affinity wins (no injection, full control).
+//  2. Explicit opt-out via DisableDefaultAffinity returns nil.
+//  3. No VolumeClaimTemplates means no shared RWO PVC to protect —
+//     default affinity adds nothing, so it is skipped (workflows that
+//     legitimately parallelize across nodes are unaffected).
+//  4. Otherwise inject the default podAffinity from
+//     DefaultPodAffinityFor.
+func resolveAffinity(w *Workflow) *model.Affinity {
+	if w.Affinity != nil {
+		return w.Affinity
+	}
+	if w.DisableDefaultAffinity {
+		return nil
+	}
+	if len(w.VolumeClaimTemplates) == 0 {
+		return nil
+	}
+	return DefaultPodAffinityFor(w)
 }
 
 func (w *Workflow) buildMetrics() *model.MetricsModel {
@@ -199,6 +257,13 @@ func (w *Workflow) GetNamespace() string {
 }
 
 // Build converts the Workflow to its serializable model.
+//
+// Workflow builder to the serializable WorkflowModel. The function is a
+// straight-line pipeline (no branching beyond err checks); splitting it
+// would just rename variables. The BaseTemplate extraction (T4.1, v0.6.0)
+// will collapse several blocks once it lands.
+//
+//nolint:funlen // Build is the canonical translation from the user-facing
 func (w *Workflow) Build() (model.WorkflowModel, error) {
 	if err := w.validate(); err != nil {
 		return model.WorkflowModel{}, err
@@ -213,7 +278,8 @@ func (w *Workflow) Build() (model.WorkflowModel, error) {
 		kind = DefaultKind
 	}
 
-	templates, err := buildTemplateModels(w.Templates)
+	cfg := resolveConfig(w.Config)
+	templates, err := buildTemplateModels(w.Templates, cfg)
 	if err != nil {
 		return model.WorkflowModel{}, err
 	}
@@ -278,7 +344,7 @@ func (w *Workflow) Build() (model.WorkflowModel, error) {
 			PodDisruptionBudget:          w.PodDisruptionBudget,
 			PodMetadata:                  w.PodMetadata,
 			SecurityContext:              w.SecurityContext,
-			Affinity:                     w.Affinity,
+			Affinity:                     resolveAffinity(w),
 			AutomountServiceAccountToken: w.AutomountServiceAccountToken,
 			WorkflowTemplateRef:          w.WorkflowTemplateRef,
 			ArtifactGC:                   w.ArtifactGC,
@@ -287,7 +353,11 @@ func (w *Workflow) Build() (model.WorkflowModel, error) {
 		},
 	}
 
-	globalConfig.DispatchWorkflowHooks(&wfModel)
+	cfg.DispatchWorkflowHooks(&wfModel)
+	// T8.2: named workflow hooks fire after anonymous; errors abort.
+	if err := cfg.DispatchNamedWorkflowHooks(&wfModel); err != nil {
+		return model.WorkflowModel{}, fmt.Errorf("workflow %q: %w", w.effectiveName(), err)
+	}
 	return wfModel, nil
 }
 

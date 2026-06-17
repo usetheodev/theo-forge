@@ -642,7 +642,7 @@ func TestExprConcat(t *testing.T) {
 
 // --- Coverage tests (consolidated from coverage_test.go) ---
 
-// Cover ParamRef
+// Cover ParamRef.
 func TestParamRef(t *testing.T) {
 	got := expr.ParamRef("inputs.parameters.msg")
 	want := "{{inputs.parameters.msg}}"
@@ -651,7 +651,7 @@ func TestParamRef(t *testing.T) {
 	}
 }
 
-// Cover APIError.Error
+// Cover APIError.Error.
 func TestAPIErrorString(t *testing.T) {
 	e := &client.APIError{StatusCode: 404, Message: "not found"}
 	if !strings.Contains(e.Error(), "404") {
@@ -662,7 +662,7 @@ func TestAPIErrorString(t *testing.T) {
 	}
 }
 
-// Cover GetVersion
+// Cover GetVersion.
 func TestServiceGetVersion(t *testing.T) {
 	svc := &client.WorkflowsService{
 		Host: "https://argo.example.com",
@@ -679,12 +679,12 @@ func TestServiceGetVersion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v["version"] != "v3.5.0" {
-		t.Errorf("version = %v", v["version"])
+	if v.Version != "v3.5.0" {
+		t.Errorf("version = %q", v.Version)
 	}
 }
 
-// Cover FromJSON
+// Cover FromJSON.
 func TestFromJSONCoverage(t *testing.T) {
 	w := &Workflow{
 		Name:       "json-roundtrip",
@@ -711,7 +711,7 @@ func TestFromJSONInvalid(t *testing.T) {
 	}
 }
 
-// Cover PVCVolume.BuildVolume
+// Cover PVCVolume.BuildVolume.
 func TestPVCVolumeBuildVolume(t *testing.T) {
 	v := PVCVolume{
 		BaseVolume:       BaseVolume{Name: "data", MountPath: "/data"},
@@ -734,7 +734,7 @@ func TestPVCVolumeBuildVolume(t *testing.T) {
 	}
 }
 
-// Cover Expr.C with int64 and float64 branches
+// Cover Expr.C with int64 and float64 branches.
 func TestExprConstantInt64(t *testing.T) {
 	e := expr.C(int64(42))
 	if e.String() != "42" {
@@ -749,7 +749,7 @@ func TestExprConstantFloat64(t *testing.T) {
 	}
 }
 
-// Cover WorkflowTemplate name-too-long validation
+// Cover WorkflowTemplate name-too-long validation.
 func TestWorkflowTemplateNameTooLong(t *testing.T) {
 	wt := &WorkflowTemplate{
 		Name:       strings.Repeat("a", NameLimit+1),
@@ -761,7 +761,7 @@ func TestWorkflowTemplateNameTooLong(t *testing.T) {
 	}
 }
 
-// Cover HTTPTemplate with inputs and outputs
+// Cover HTTPTemplate with inputs and outputs.
 func TestHTTPTemplateWithInputsOutputs(t *testing.T) {
 	h := &HTTPTemplate{
 		Name:   "with-io",
@@ -785,17 +785,17 @@ func TestHTTPTemplateWithInputsOutputs(t *testing.T) {
 	}
 }
 
-// Cover GlobalConfig.GetImage empty fallback
+// Cover GlobalConfig.GetImage empty fallback.
 func TestGlobalConfigGetImageFallback(t *testing.T) {
 	cfg := GetGlobalConfig()
 	defer cfg.Reset()
-	cfg.Image = ""
+	cfg.SetImage("")
 	if cfg.GetImage() != "python:3.11" {
 		t.Errorf("fallback = %q", cfg.GetImage())
 	}
 }
 
-// Cover ContainerSet BuildTemplate output path
+// Cover ContainerSet BuildTemplate output path.
 func TestContainerSetWithOutputs(t *testing.T) {
 	cs := &ContainerSet{
 		Name: "with-out",
@@ -813,7 +813,7 @@ func TestContainerSetWithOutputs(t *testing.T) {
 	}
 }
 
-// Cover ContainerSet with retry
+// Cover ContainerSet with retry.
 func TestContainerSetWithRetry(t *testing.T) {
 	limit := 2
 	cs := &ContainerSet{
@@ -834,7 +834,7 @@ func TestContainerSetWithRetry(t *testing.T) {
 
 // --- Coverage 90% tests (consolidated from coverage_90_test.go) ---
 
-// Cover ToYAML/ToJSON/ToDict error paths (invalid workflow -> Build fails -> propagates)
+// Cover ToYAML/ToJSON/ToDict error paths (invalid workflow -> Build fails -> propagates).
 func TestWorkflowToYAMLBuildError(t *testing.T) {
 	w := &Workflow{Entrypoint: "main"} // no name
 	_, err := w.ToYAML()
@@ -866,7 +866,7 @@ func TestFromYAMLInvalid(t *testing.T) {
 	}
 }
 
-// Cover WorkflowTemplate ToYAML error path
+// Cover WorkflowTemplate ToYAML error path.
 func TestWorkflowTemplateToYAMLBuildError(t *testing.T) {
 	wt := &WorkflowTemplate{} // no name
 	_, err := wt.ToYAML()
@@ -875,7 +875,7 @@ func TestWorkflowTemplateToYAMLBuildError(t *testing.T) {
 	}
 }
 
-// Cover ClusterWorkflowTemplate ToYAML error path
+// Cover ClusterWorkflowTemplate ToYAML error path.
 func TestClusterWorkflowTemplateToYAMLBuildError(t *testing.T) {
 	cwt := &ClusterWorkflowTemplate{} // no name
 	_, err := cwt.ToYAML()
@@ -884,7 +884,7 @@ func TestClusterWorkflowTemplateToYAMLBuildError(t *testing.T) {
 	}
 }
 
-// Cover CronWorkflow ToYAML/ToJSON error paths
+// Cover CronWorkflow ToYAML/ToJSON error paths.
 func TestCronWorkflowToYAMLBuildError(t *testing.T) {
 	cw := &CronWorkflow{} // no name, no schedule
 	_, err := cw.ToYAML()
@@ -901,7 +901,7 @@ func TestCronWorkflowToJSONBuildError(t *testing.T) {
 	}
 }
 
-// Cover Workflow.Build with failing template
+// Cover Workflow.Build with failing template.
 func TestWorkflowBuildWithFailingTemplate(t *testing.T) {
 	w := &Workflow{
 		Name:       "test",
@@ -916,7 +916,7 @@ func TestWorkflowBuildWithFailingTemplate(t *testing.T) {
 	}
 }
 
-// Cover WorkflowTemplate.Build with failing template
+// Cover WorkflowTemplate.Build with failing template.
 func TestWorkflowTemplateBuildWithFailingTemplate(t *testing.T) {
 	wt := &WorkflowTemplate{
 		Name:       "test",
@@ -931,7 +931,7 @@ func TestWorkflowTemplateBuildWithFailingTemplate(t *testing.T) {
 	}
 }
 
-// Cover ClusterWorkflowTemplate.Build with failing template
+// Cover ClusterWorkflowTemplate.Build with failing template.
 func TestClusterWorkflowTemplateBuildWithFailingTemplate(t *testing.T) {
 	cwt := &ClusterWorkflowTemplate{
 		Name:       "test",
@@ -946,7 +946,7 @@ func TestClusterWorkflowTemplateBuildWithFailingTemplate(t *testing.T) {
 	}
 }
 
-// Cover CronWorkflow.Build with failing template
+// Cover CronWorkflow.Build with failing template.
 func TestCronWorkflowBuildWithFailingTemplate(t *testing.T) {
 	cw := &CronWorkflow{
 		Name:       "test",
@@ -962,7 +962,7 @@ func TestCronWorkflowBuildWithFailingTemplate(t *testing.T) {
 	}
 }
 
-// Cover WorkflowTemplate.Build with volumes
+// Cover WorkflowTemplate.Build with volumes.
 func TestWorkflowTemplateBuildWithVolumes(t *testing.T) {
 	wt := &WorkflowTemplate{
 		Name:       "with-vols",
@@ -981,7 +981,7 @@ func TestWorkflowTemplateBuildWithVolumes(t *testing.T) {
 	}
 }
 
-// Cover CronWorkflow.Build with volumes and arguments
+// Cover CronWorkflow.Build with volumes and arguments.
 func TestCronWorkflowBuildWithVolsAndArgs(t *testing.T) {
 	cw := &CronWorkflow{
 		Name:       "full",
@@ -1005,7 +1005,7 @@ func TestCronWorkflowBuildWithVolsAndArgs(t *testing.T) {
 	}
 }
 
-// Cover Workflow.ToFile error paths
+// Cover Workflow.ToFile error paths.
 func TestWorkflowToFileBuildError(t *testing.T) {
 	w := &Workflow{Entrypoint: "main"} // no name
 	_, err := w.ToFile(t.TempDir(), "")
@@ -1014,7 +1014,7 @@ func TestWorkflowToFileBuildError(t *testing.T) {
 	}
 }
 
-// Cover DAG.buildOutputs with output parameters
+// Cover DAG.buildOutputs with output parameters.
 func TestDAGWithOutputParameters(t *testing.T) {
 	dag := &DAG{
 		Name: "with-out-params",
@@ -1031,7 +1031,7 @@ func TestDAGWithOutputParameters(t *testing.T) {
 	}
 }
 
-// Cover LintWorkflow build error path
+// Cover LintWorkflow build error path.
 func TestServiceLintWorkflowBuildError(t *testing.T) {
 	svc := &client.WorkflowsService{Host: "https://argo.example.com", Namespace: "default"}
 	w := &Workflow{Entrypoint: "main"} // no name
@@ -1041,7 +1041,7 @@ func TestServiceLintWorkflowBuildError(t *testing.T) {
 	}
 }
 
-// Cover CreateWorkflow build error path
+// Cover CreateWorkflow build error path.
 func TestServiceCreateWorkflowBuildError(t *testing.T) {
 	svc := &client.WorkflowsService{Host: "https://argo.example.com", Namespace: "default"}
 	w := &Workflow{Entrypoint: "main"} // no name
@@ -1051,7 +1051,7 @@ func TestServiceCreateWorkflowBuildError(t *testing.T) {
 	}
 }
 
-// Cover AddParallelGroup with name conflict within group
+// Cover AddParallelGroup with name conflict within group.
 func TestStepsAddParallelGroupInternalConflict(t *testing.T) {
 	steps := &Steps{Name: "test"}
 	err := steps.AddParallelGroup(
@@ -1063,7 +1063,7 @@ func TestStepsAddParallelGroupInternalConflict(t *testing.T) {
 	}
 }
 
-// Cover S3/GCS/HTTP/Git/Raw artifact error paths
+// Cover S3/GCS/HTTP/Git/Raw artifact error paths.
 func TestS3ArtifactNoNameFails(t *testing.T) {
 	a := S3Artifact{Artifact: Artifact{Path: "/tmp"}, Bucket: "b", Key: "k"}
 	_, err := a.Build()
@@ -1104,7 +1104,7 @@ func TestHTTPArtifactNoNameFails(t *testing.T) {
 	}
 }
 
-// Cover Expr.C default branch
+// Cover Expr.C default branch.
 func TestExprConstantDefault(t *testing.T) {
 	type custom struct{ X int }
 	e := expr.C(custom{X: 42})
@@ -1115,7 +1115,7 @@ func TestExprConstantDefault(t *testing.T) {
 
 // --- Coverage 95% tests (consolidated from coverage_95_test.go) ---
 
-// Cover ClusterWorkflowTemplate.Build with arguments
+// Cover ClusterWorkflowTemplate.Build with arguments.
 func TestClusterWorkflowTemplateBuildWithArguments(t *testing.T) {
 	cwt := &ClusterWorkflowTemplate{
 		Name:       "with-args",
@@ -1132,7 +1132,7 @@ func TestClusterWorkflowTemplateBuildWithArguments(t *testing.T) {
 	}
 }
 
-// Cover CronWorkflow.Build with arguments
+// Cover CronWorkflow.Build with arguments.
 func TestCronWorkflowBuildWithArguments(t *testing.T) {
 	cw := &CronWorkflow{
 		Name:       "with-args",
@@ -1150,7 +1150,7 @@ func TestCronWorkflowBuildWithArguments(t *testing.T) {
 	}
 }
 
-// Cover BuildDAGTask artifact argument error path
+// Cover BuildDAGTask artifact argument error path.
 func TestTaskBuildDAGTaskArtifactError(t *testing.T) {
 	task := &Task{
 		Name:     "test",
@@ -1165,7 +1165,7 @@ func TestTaskBuildDAGTaskArtifactError(t *testing.T) {
 	}
 }
 
-// Cover BuildStep artifact argument error path
+// Cover BuildStep artifact argument error path.
 func TestStepBuildStepArtifactError(t *testing.T) {
 	s := &Step{
 		Name:     "test",
@@ -1180,7 +1180,7 @@ func TestStepBuildStepArtifactError(t *testing.T) {
 	}
 }
 
-// Cover BuildArguments artifact error path
+// Cover BuildArguments artifact error path.
 func TestBuildArgumentsArtifactError(t *testing.T) {
 	_, err := BuildArguments(
 		nil,
@@ -1191,7 +1191,7 @@ func TestBuildArgumentsArtifactError(t *testing.T) {
 	}
 }
 
-// Cover BuildArguments parameter error path
+// Cover BuildArguments parameter error path.
 func TestBuildArgumentsParameterError(t *testing.T) {
 	_, err := BuildArguments(
 		[]Parameter{{Value: ptrStr("val")}}, // no name
@@ -1202,7 +1202,7 @@ func TestBuildArgumentsParameterError(t *testing.T) {
 	}
 }
 
-// Cover DAG.BuildTemplate with task build error
+// Cover DAG.BuildTemplate with task build error.
 func TestDAGBuildTemplateWithTaskError(t *testing.T) {
 	dag := &DAG{
 		Name: "test",
@@ -1216,7 +1216,7 @@ func TestDAGBuildTemplateWithTaskError(t *testing.T) {
 	}
 }
 
-// Cover Steps.BuildTemplate with step group error
+// Cover Steps.BuildTemplate with step group error.
 func TestStepsBuildTemplateWithStepError(t *testing.T) {
 	steps := &Steps{Name: "test"}
 	steps.StepGroups = append(steps.StepGroups, Parallel{
@@ -1228,7 +1228,7 @@ func TestStepsBuildTemplateWithStepError(t *testing.T) {
 	}
 }
 
-// Cover Workflow.ToFile with .yml extension
+// Cover Workflow.ToFile with .yml extension.
 func TestWorkflowToFileYmlExtension(t *testing.T) {
 	w := &Workflow{
 		Name:       "test",
@@ -1264,7 +1264,7 @@ func TestConvertDecimalUnitLargeSuffix(t *testing.T) {
 	}
 }
 
-// Cover ConfigMapVolume with no-name edge
+// Cover ConfigMapVolume with no-name edge.
 func TestConfigMapVolumeNoNameBuildsError(t *testing.T) {
 	v := ConfigMapVolume{BaseVolume: BaseVolume{MountPath: "/cfg"}}
 	_, err := v.BuildVolume()
@@ -1273,7 +1273,7 @@ func TestConfigMapVolumeNoNameBuildsError(t *testing.T) {
 	}
 }
 
-// Cover Workflow.buildVolumes error path (volume with no name)
+// Cover Workflow.buildVolumes error path (volume with no name).
 func TestWorkflowBuildVolumesWithError(t *testing.T) {
 	w := &Workflow{
 		Name:       "test",
@@ -1290,7 +1290,7 @@ func TestWorkflowBuildVolumesWithError(t *testing.T) {
 	}
 }
 
-// Cover Workflow.buildVolumeClaimTemplates error propagation
+// Cover Workflow.buildVolumeClaimTemplates error propagation.
 func TestWorkflowBuildVolumeClaimTemplatesWithError(t *testing.T) {
 	w := &Workflow{
 		Name:       "test",
@@ -1309,7 +1309,7 @@ func TestWorkflowBuildVolumeClaimTemplatesWithError(t *testing.T) {
 
 // --- Coverage extra tests (consolidated from coverage_extra_test.go) ---
 
-// Cover Workflow.buildVolumeClaimTemplates
+// Cover Workflow.buildVolumeClaimTemplates.
 func TestWorkflowWithVolumeClaimTemplates(t *testing.T) {
 	w := &Workflow{
 		Name:       "with-pvcs",
@@ -1355,7 +1355,7 @@ func TestWorkflowWithVolumeClaimTemplates(t *testing.T) {
 	}
 }
 
-// Cover Workflow.buildArguments with artifacts
+// Cover Workflow.buildArguments with artifacts.
 func TestWorkflowWithArgumentArtifacts(t *testing.T) {
 	w := &Workflow{
 		Name:       "with-art-args",
@@ -1384,7 +1384,7 @@ func TestWorkflowWithArgumentArtifacts(t *testing.T) {
 	}
 }
 
-// Cover Workflow.buildMetrics
+// Cover Workflow.buildMetrics.
 func TestWorkflowWithMetrics(t *testing.T) {
 	w := &Workflow{
 		Name:       "with-metrics",
@@ -1413,7 +1413,7 @@ func TestWorkflowWithMetrics(t *testing.T) {
 	}
 }
 
-// Cover Container.buildMetrics
+// Cover Container.buildMetrics.
 func TestContainerWithMetrics(t *testing.T) {
 	c := &Container{
 		Name:  "with-metrics",
@@ -1431,7 +1431,7 @@ func TestContainerWithMetrics(t *testing.T) {
 	}
 }
 
-// Cover Script.buildMetrics and buildMetadata
+// Cover Script.buildMetrics and buildMetadata.
 func TestScriptWithMetricsAndMetadata(t *testing.T) {
 	s := &Script{
 		Name:        "with-meta",
@@ -1459,7 +1459,7 @@ func TestScriptWithMetricsAndMetadata(t *testing.T) {
 	}
 }
 
-// Cover Script.buildVolumeMounts
+// Cover Script.buildVolumeMounts.
 func TestScriptWithVolumeMounts(t *testing.T) {
 	s := &Script{
 		Name:    "with-mounts",
@@ -1479,7 +1479,7 @@ func TestScriptWithVolumeMounts(t *testing.T) {
 	}
 }
 
-// Cover DAG.buildOutputs with artifacts
+// Cover DAG.buildOutputs with artifacts.
 func TestDAGWithInputAndOutputArtifacts(t *testing.T) {
 	dag := &DAG{
 		Name: "with-art-io",
@@ -1502,7 +1502,7 @@ func TestDAGWithInputAndOutputArtifacts(t *testing.T) {
 	}
 }
 
-// Cover Steps.buildOutputs with artifacts
+// Cover Steps.buildOutputs with artifacts.
 func TestStepsWithOutputArtifacts(t *testing.T) {
 	steps := &Steps{
 		Name: "with-art-out",
@@ -1519,7 +1519,7 @@ func TestStepsWithOutputArtifacts(t *testing.T) {
 	}
 }
 
-// Cover Step with artifact arguments
+// Cover Step with artifact arguments.
 func TestStepWithArtifactArguments(t *testing.T) {
 	s := &Step{
 		Name:     "with-art-args",
@@ -1537,7 +1537,7 @@ func TestStepWithArtifactArguments(t *testing.T) {
 	}
 }
 
-// Cover Task with artifact arguments
+// Cover Task with artifact arguments.
 func TestTaskWithArtifactArguments(t *testing.T) {
 	task := &Task{
 		Name:     "with-art-args",
@@ -1555,7 +1555,7 @@ func TestTaskWithArtifactArguments(t *testing.T) {
 	}
 }
 
-// Cover PVCVolume.BuildPVC default access modes
+// Cover PVCVolume.BuildPVC default access modes.
 func TestPVCVolumeDefaultAccessModes(t *testing.T) {
 	v := PVCVolume{
 		BaseVolume: BaseVolume{Name: "default-mode", MountPath: "/data"},
@@ -1570,7 +1570,7 @@ func TestPVCVolumeDefaultAccessModes(t *testing.T) {
 	}
 }
 
-// Cover Container with output parameters and artifacts
+// Cover Container with output parameters and artifacts.
 func TestContainerWithOutputs(t *testing.T) {
 	c := &Container{
 		Name:  "with-outputs",
@@ -1597,7 +1597,7 @@ func TestContainerWithOutputs(t *testing.T) {
 	}
 }
 
-// Cover Workflow with retry strategy
+// Cover Workflow with retry strategy.
 func TestWorkflowWithRetryStrategy(t *testing.T) {
 	limit := 5
 	w := &Workflow{
@@ -1623,7 +1623,7 @@ func TestWorkflowWithRetryStrategy(t *testing.T) {
 
 // --- Coverage final tests (consolidated from coverage_final_test.go) ---
 
-// Cover volume BuildVolume error paths (no-name failures)
+// Cover volume BuildVolume error paths (no-name failures).
 func TestHostPathVolumeNoNameFails(t *testing.T) {
 	v := HostPathVolume{Path: "/data"}
 	_, err := v.BuildVolume()
@@ -1680,7 +1680,7 @@ func TestConfigMapVolumeNoNameFails(t *testing.T) {
 	}
 }
 
-// Cover Parameter.String success path
+// Cover Parameter.String success path.
 func TestParameterStringSuccess(t *testing.T) {
 	p := Parameter{Name: "test", Value: ptrStr("hello")}
 	s, err := p.String()
@@ -1692,7 +1692,7 @@ func TestParameterStringSuccess(t *testing.T) {
 	}
 }
 
-// Cover service unmarshal error paths
+// Cover service unmarshal error paths.
 func TestServiceCreateWorkflowBadResponse(t *testing.T) {
 	svc := &client.WorkflowsService{
 		Host:      "https://argo.example.com",
@@ -1789,7 +1789,7 @@ func TestServiceGetWorkflowBadResponse(t *testing.T) {
 	}
 }
 
-// Cover Steps.buildInputs/buildOutputs artifact paths
+// Cover Steps.buildInputs/buildOutputs artifact paths.
 func TestStepsWithInputArtifacts(t *testing.T) {
 	steps := &Steps{
 		Name: "with-art-in",
@@ -1806,7 +1806,7 @@ func TestStepsWithInputArtifacts(t *testing.T) {
 	}
 }
 
-// Cover DAG.buildInputs artifact path
+// Cover DAG.buildInputs artifact path.
 func TestDAGWithInputArtifacts(t *testing.T) {
 	dag := &DAG{
 		Name: "with-art-in",
@@ -1823,7 +1823,7 @@ func TestDAGWithInputArtifacts(t *testing.T) {
 	}
 }
 
-// Cover Script.buildInputs artifact path
+// Cover Script.buildInputs artifact path.
 func TestScriptWithInputArtifacts(t *testing.T) {
 	s := &Script{
 		Name:    "with-art-in",
@@ -1843,7 +1843,7 @@ func TestScriptWithInputArtifacts(t *testing.T) {
 	}
 }
 
-// Cover ValidateResourceRequirements - limit-only validations
+// Cover ValidateResourceRequirements - limit-only validations.
 func TestValidateResourceLimitOnlyInvalid(t *testing.T) {
 	err := ValidateResourceRequirements(ResourceRequirements{
 		Limits: ResourceList{CPU: "abc"},

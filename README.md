@@ -111,10 +111,10 @@ echoTpl := &forge.Container{
 
 dag := &forge.DAG{Name: "diamond"}
 
-A := &forge.Task{Name: "A", Template: "echo", Arguments: []forge.Parameter{{Name: "msg", Value: ptr("Task A")}}}
-B := &forge.Task{Name: "B", Template: "echo", Arguments: []forge.Parameter{{Name: "msg", Value: ptr("Task B")}}}
-C := &forge.Task{Name: "C", Template: "echo", Arguments: []forge.Parameter{{Name: "msg", Value: ptr("Task C")}}}
-D := &forge.Task{Name: "D", Template: "echo", Arguments: []forge.Parameter{{Name: "msg", Value: ptr("Task D")}}}
+A := &forge.Task{Name: "A", Template: "echo", Arguments: []forge.Parameter{{Name: "msg", Value: forge.Ptr("Task A")}}}
+B := &forge.Task{Name: "B", Template: "echo", Arguments: []forge.Parameter{{Name: "msg", Value: forge.Ptr("Task B")}}}
+C := &forge.Task{Name: "C", Template: "echo", Arguments: []forge.Parameter{{Name: "msg", Value: forge.Ptr("Task C")}}}
+D := &forge.Task{Name: "D", Template: "echo", Arguments: []forge.Parameter{{Name: "msg", Value: forge.Ptr("Task D")}}}
 
 A.Then(B)   // A → B
 A.Then(C)   // A → C
@@ -184,7 +184,7 @@ svc := client.NewWorkflowsService(
 result, err := svc.CreateWorkflow(ctx, w)
 
 // List workflows
-workflows, err := svc.ListWorkflows(ctx, nil)
+workflows, err := svc.ListWorkflows(ctx, "")
 
 // Lint before submitting
 linted, err := svc.LintWorkflow(ctx, w)
@@ -202,7 +202,7 @@ ref := expr.Tasks("my-task").Attr("outputs.result")
 fmt.Println(ref.Tmpl()) // {{tasks.my-task.outputs.result}}
 
 // Build conditionals
-cond := expr.Steps("validate").Attr("outputs.result").Eq(expr.C("success"))
+cond := expr.Steps("validate").Attr("outputs.result").Equals(expr.C("success"))
 ```
 
 ## Features
@@ -248,6 +248,59 @@ cond := expr.Steps("validate").Attr("outputs.result").Eq(expr.C("success"))
 - OnExit handlers
 - Pod and container security contexts
 - Artifact garbage collection
+
+### Default podAffinity for shared RWO PVCs
+
+Build workflows commonly share a single `ReadWriteOnce` PVC across DAG
+steps (source checkout, cache, artifacts). When Kubernetes schedules
+those steps on different nodes, the second step cannot attach the volume
+until the first pod fully terminates and the volume detaches — a race
+that surfaces as ~10% build failure under concurrent load.
+
+Forge fixes this at the source. When `Workflow.VolumeClaimTemplates` is
+non-empty AND `Affinity` is `nil`, `Build()` injects a canonical
+`podAffinity` term that co-locates every pod of the workflow on the
+same node (matches on `workflows.argoproj.io/workflow` with topology
+`kubernetes.io/hostname`).
+
+```go
+w := &forge.Workflow{
+    GenerateName: "build-",
+    Entrypoint:   "main",
+    VolumeClaimTemplates: []forge.PVCVolume{{
+        BaseVolume:  forge.BaseVolume{Name: "scratch", MountPath: "/scratch"},
+        Size:        "1Gi",
+        AccessModes: []forge.AccessMode{forge.ReadWriteOnce},
+    }},
+    // Affinity is nil → Build() injects default podAffinity automatically.
+    Templates: []forge.Templatable{
+        &forge.Container{Name: "main", Image: "alpine:3.18"},
+    },
+}
+```
+
+For `GenerateName`-only workflows, the label value is the Argo runtime
+template variable `{{workflow.name}}`, which Argo Controller materializes
+after generating the final workflow name.
+
+**Opt-out** — workflows that legitimately parallelize across nodes (no
+shared PVC semantics, ReadWriteMany volumes, etc.) can suppress the
+injection:
+
+```go
+w := &forge.Workflow{
+    Name:                   "fan-out",
+    DisableDefaultAffinity: true,  // skip default injection
+    VolumeClaimTemplates:   [...],
+}
+```
+
+A user-supplied `Affinity` always wins — the default is never injected
+when `Affinity != nil`. Workflows without `VolumeClaimTemplates` are
+unaffected (no PVC, no race).
+
+The canonical term is exposed via `forge.DefaultPodAffinityFor(w)` for
+inspection or programmatic reuse.
 
 ## Packages
 

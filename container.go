@@ -83,22 +83,42 @@ type Container struct {
 	LivenessProbe *model.Probe
 }
 
+// GetName is the method.
 func (c *Container) GetName() string {
 	return c.Name
 }
 
 // BuildTemplate builds the Argo Template for this container.
+// Note: Image presence is validated AFTER ApplyTemplateDefaults runs (so
+// GlobalConfig.Image can supply a default); see validateBuiltTemplate.
 func (c *Container) BuildTemplate() (model.TemplateModel, error) {
 	if c.Name == "" {
 		return model.TemplateModel{}, fmt.Errorf("container template name cannot be empty")
 	}
 
-	inputs, err := buildInputsFromParams(c.Inputs, c.InputArtifacts)
-	if err != nil {
-		return model.TemplateModel{}, fmt.Errorf("container %q: %w", c.Name, err)
-	}
-
-	outputs, err := buildOutputsFromParams(c.Outputs, c.OutputArtifacts)
+	var out model.TemplateModel
+	sidecars, err := assignSharedTemplateFields(&out, c.Name, sharedTemplateFields{
+		Inputs:                c.Inputs,
+		Outputs:               c.Outputs,
+		InputArtifacts:        c.InputArtifacts,
+		OutputArtifacts:       c.OutputArtifacts,
+		Labels:                c.Labels,
+		Annotations:           c.Annotations,
+		Timeout:               c.Timeout,
+		ActiveDeadlineSeconds: c.ActiveDeadlineSeconds,
+		RetryStrategy:         c.RetryStrategy,
+		NodeSelector:          c.NodeSelector,
+		ServiceAccountName:    c.ServiceAccountName,
+		Metrics:               c.Metrics,
+		Daemon:                c.Daemon,
+		Memoize:               c.Memoize,
+		Synchronization:       c.Synchronization,
+		PodSpecPatch:          c.PodSpecPatch,
+		Hooks:                 c.Hooks,
+		Sidecars:              c.Sidecars,
+		Tolerations:           c.Tolerations,
+		Affinity:              c.Affinity,
+	})
 	if err != nil {
 		return model.TemplateModel{}, fmt.Errorf("container %q: %w", c.Name, err)
 	}
@@ -107,49 +127,27 @@ func (c *Container) BuildTemplate() (model.TemplateModel, error) {
 	for i := range c.InitContainers {
 		initContainers = append(initContainers, c.InitContainers[i].Build())
 	}
-	var sidecars []model.ContainerModel
-	for i := range c.Sidecars {
-		sidecars = append(sidecars, c.Sidecars[i].Build())
-	}
 
-	return model.TemplateModel{
-		Name: c.Name,
-		Container: &model.ContainerModel{
-			Image:           c.Image,
-			Command:         c.Command,
-			Args:            c.Args,
-			WorkingDir:      c.WorkingDir,
-			Env:             buildEnvVars(c.Env),
-			EnvFrom:         c.EnvFrom,
-			Resources:       c.Resources,
-			VolumeMounts:    buildVolumeMountModels(c.VolumeMounts),
-			ImagePullPolicy: string(c.ImagePullPolicy),
-			Ports:           c.Ports,
-			SecurityContext: c.SecurityContext,
-			ReadinessProbe:  c.ReadinessProbe,
-			LivenessProbe:   c.LivenessProbe,
-		},
-		Inputs:                inputs,
-		Outputs:               outputs,
-		Metadata:              buildMetadataModel(c.Labels, c.Annotations),
-		Timeout:               c.Timeout,
-		ActiveDeadlineSeconds: c.ActiveDeadlineSeconds,
-		RetryStrategy:         buildRetryStrategyModel(c.RetryStrategy),
-		NodeSelector:          c.NodeSelector,
-		ServiceAccountName:    c.ServiceAccountName,
-		Metrics:               buildMetricsModel(c.Metrics),
-		Daemon:                c.Daemon,
-		Memoize:               c.Memoize,
-		Synchronization:       c.Synchronization,
-		PodSpecPatch:          c.PodSpecPatch,
-		Hooks:                 c.Hooks,
-		ArchiveLocation:       c.ArchiveLocation,
-		InitContainers:        initContainers,
-		Sidecars:              sidecars,
-		Tolerations:           c.Tolerations,
-		Parallelism:           c.Parallelism,
-		Affinity:              c.Affinity,
-	}, nil
+	out.Container = &model.ContainerModel{
+		Image:           c.Image,
+		Command:         c.Command,
+		Args:            c.Args,
+		WorkingDir:      c.WorkingDir,
+		Env:             buildEnvVars(c.Env),
+		EnvFrom:         c.EnvFrom,
+		Resources:       c.Resources,
+		VolumeMounts:    buildVolumeMountModels(c.VolumeMounts),
+		ImagePullPolicy: string(c.ImagePullPolicy),
+		Ports:           c.Ports,
+		SecurityContext: c.SecurityContext,
+		ReadinessProbe:  c.ReadinessProbe,
+		LivenessProbe:   c.LivenessProbe,
+	}
+	out.ArchiveLocation = c.ArchiveLocation
+	out.InitContainers = initContainers
+	out.Sidecars = sidecars
+	out.Parallelism = c.Parallelism
+	return out, nil
 }
 
 // --- Script ---
@@ -216,13 +214,35 @@ type Script struct {
 	Tolerations []model.Toleration
 	// Affinity defines scheduling constraints for the template pod.
 	Affinity *model.Affinity
+	// SecurityContext for the container (T4.1: Script now mirrors Container).
+	SecurityContext *model.SecurityContext
+	// InitContainers are init containers for the pod (T4.1).
+	InitContainers []UserContainer
+	// EnvFrom sources for env vars (T4.1).
+	EnvFrom []model.EnvFromSource
+	// ReadinessProbe for the container (T4.1).
+	ReadinessProbe *model.Probe
+	// LivenessProbe for the container (T4.1).
+	LivenessProbe *model.Probe
+	// Ports exposed by the container (T4.1).
+	Ports []ContainerPort
+	// Parallelism limits concurrent pods (T4.1).
+	Parallelism *int
+	// Lifecycle defines container lifecycle hooks (T4.1).
+	// Note: held as a model-level concept; for now this is a placeholder
+	// mirroring Container's Hooks map. Kept distinct because container.Lifecycle
+	// is a richer model in upstream Argo; see model.LifecycleHook documentation.
+	Lifecycle map[string]model.LifecycleHook
 }
 
+// GetName is the method.
 func (s *Script) GetName() string {
 	return s.Name
 }
 
 // BuildTemplate builds the Argo Template for this script.
+// Note: Image presence is validated AFTER ApplyTemplateDefaults runs (so
+// GlobalConfig.Image can supply a default); see validateBuiltTemplate.
 func (s *Script) BuildTemplate() (model.TemplateModel, error) {
 	if s.Name == "" {
 		return model.TemplateModel{}, fmt.Errorf("script template name cannot be empty")
@@ -231,50 +251,58 @@ func (s *Script) BuildTemplate() (model.TemplateModel, error) {
 		return model.TemplateModel{}, fmt.Errorf("script source cannot be empty")
 	}
 
-	inputs, err := buildInputsFromParams(s.Inputs, s.InputArtifacts)
-	if err != nil {
-		return model.TemplateModel{}, fmt.Errorf("script %q: %w", s.Name, err)
-	}
-
-	outputs, err := buildOutputsFromParams(s.Outputs, s.OutputArtifacts)
-	if err != nil {
-		return model.TemplateModel{}, fmt.Errorf("script %q: %w", s.Name, err)
-	}
-
-	var sidecars []model.ContainerModel
-	for i := range s.Sidecars {
-		sidecars = append(sidecars, s.Sidecars[i].Build())
-	}
-
-	return model.TemplateModel{
-		Name: s.Name,
-		Script: &model.ScriptModel{
-			Image:           s.Image,
-			Command:         s.Command,
-			Args:            s.Args,
-			Source:          s.Source,
-			WorkingDir:      s.WorkingDir,
-			Env:             buildEnvVars(s.Env),
-			Resources:       s.Resources,
-			VolumeMounts:    buildVolumeMountModels(s.VolumeMounts),
-			ImagePullPolicy: string(s.ImagePullPolicy),
-		},
-		Inputs:                inputs,
-		Outputs:               outputs,
-		Metadata:              buildMetadataModel(s.Labels, s.Annotations),
+	var out model.TemplateModel
+	sidecars, err := assignSharedTemplateFields(&out, s.Name, sharedTemplateFields{
+		Inputs:                s.Inputs,
+		Outputs:               s.Outputs,
+		InputArtifacts:        s.InputArtifacts,
+		OutputArtifacts:       s.OutputArtifacts,
+		Labels:                s.Labels,
+		Annotations:           s.Annotations,
 		Timeout:               s.Timeout,
 		ActiveDeadlineSeconds: s.ActiveDeadlineSeconds,
-		RetryStrategy:         buildRetryStrategyModel(s.RetryStrategy),
+		RetryStrategy:         s.RetryStrategy,
 		NodeSelector:          s.NodeSelector,
 		ServiceAccountName:    s.ServiceAccountName,
-		Metrics:               buildMetricsModel(s.Metrics),
+		Metrics:               s.Metrics,
 		Daemon:                s.Daemon,
 		Memoize:               s.Memoize,
 		Synchronization:       s.Synchronization,
 		PodSpecPatch:          s.PodSpecPatch,
 		Hooks:                 s.Hooks,
-		Sidecars:              sidecars,
+		Sidecars:              s.Sidecars,
 		Tolerations:           s.Tolerations,
 		Affinity:              s.Affinity,
-	}, nil
+	})
+	if err != nil {
+		return model.TemplateModel{}, fmt.Errorf("script %q: %w", s.Name, err)
+	}
+
+	// T4.1: Script-only initContainers (paralelo a Container) — Script gains
+	// the field as part of this refactor.
+	var initContainers []model.ContainerModel
+	for i := range s.InitContainers {
+		initContainers = append(initContainers, s.InitContainers[i].Build())
+	}
+
+	out.Script = &model.ScriptModel{
+		Image:           s.Image,
+		Command:         s.Command,
+		Args:            s.Args,
+		Source:          s.Source,
+		WorkingDir:      s.WorkingDir,
+		Env:             buildEnvVars(s.Env),
+		EnvFrom:         s.EnvFrom,
+		Resources:       s.Resources,
+		VolumeMounts:    buildVolumeMountModels(s.VolumeMounts),
+		ImagePullPolicy: string(s.ImagePullPolicy),
+		Ports:           s.Ports,
+		SecurityContext: s.SecurityContext,
+		ReadinessProbe:  s.ReadinessProbe,
+		LivenessProbe:   s.LivenessProbe,
+	}
+	out.InitContainers = initContainers
+	out.Sidecars = sidecars
+	out.Parallelism = s.Parallelism
+	return out, nil
 }
