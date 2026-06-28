@@ -1,191 +1,80 @@
----
-type: project-rule
-domain: testing
-language: go
-specializes: ~/.claude/CLAUDE.md §7 Testes
-created_at: 2026-05-20
----
+# Testing
 
-# Testing — theo-forge
+Source of Truth for test discipline. Stack-agnostic.
 
-> Código sem teste é código que funciona por coincidência.
-> — `~/.claude/CLAUDE.md §7`
+## § 1 — Philosophy
 
-## TDD is the default
+- Tests protect **behavior**, not lines. 100% coverage with empty assertions is worse than 60% coverage with meaningful tests.
+- Tests are **executable documentation**. A good test describes what the system does without reading production code.
+- A broken test is the **highest-priority bug**. Once red tests are ignored, all tests lose value.
 
-RED → GREEN → REFACTOR.
+## § 2 — Pyramid
 
 ```
-RED:     Write a test that asserts the new behavior. Run it. Confirm it FAILS.
-GREEN:   Write the minimal code to make the test pass. No more.
-REFACTOR: Clean up duplication, naming, structure. Tests stay green.
+        /  E2E  \        Few — critical end-to-end flows only
+       /----------\
+      / Integration\     Moderate — system boundaries (DB, APIs, queues)
+     /--------------\
+    /   Unit         \   Many — pure business logic, fast, deterministic
+   /------------------\
 ```
 
-Plans MUST include a `#### TDD` block per task listing every RED test by name and what it asserts. `/plan-confidence` hard-caps any **bug-fix task** without an explicit TDD block at ≤70.
+- **Unit** — pure business logic, no I/O. Run in milliseconds. The foundation.
+- **Integration** — boundaries: repositories against a real DB, clients against real APIs, consumers against real queues. DIP pays off here: unit tests mock, integration tests use real implementations.
+- **E2E** — critical user-visible flows. Few, stable, representative. Don't chase edge cases here.
 
-## Pyramid (Go specialization)
+## § 3 — Rules
 
-```
-                E2E (none here — SDK has no runtime)
-              ──────────────────────────────────────
-              Integration: client/ against httptest.NewServer
-              Integration: serialize/ round-trip on 194 upstream Argo YAMLs
-              ────────────────────────────────────────────────────────────
-              Unit: builder validation, expr DSL, model JSON tags,
-                    validate package, config hook dispatch
-              ────────────────────────────────────────────────────────────
-```
+- Every business rule MUST have a unit test. No exceptions.
+- Every bug fix starts with a **failing regression test**, then the fix.
+- Tests MUST be deterministic. Flaky tests are bugs — fix or delete.
+- Each test exercises ONE behavior. "and" in the test name is a smell.
+- Tests are independent. No shared mutable state, no order dependency.
+- Use Arrange-Act-Assert (AAA) or Given-When-Then. Pick one per repo.
+- Test names describe behavior, not method: `transfer_fails_when_balance_insufficient`, not `test_transfer_1`.
 
-### Coverage targets
+## § 4 — What to test vs. what NOT to test
 
-| Package | Minimum | Current (2026-05-20) |
-|---------|---------|----------------------|
-| root `forge` | 90% | 93.6% ✅ |
-| `client` | 80% | 31% ❌ |
-| `expr` | 80% | 0% ❌ |
-| `config` | 90% | 0% ❌ |
-| `serialize` | 90% | 0% ❌ |
-| `validate` | 90% | 0% ❌ |
-| `model` | 70% (via round-trip) | 0% direct; full coverage via integration ⚠️ |
+| Test | Don't test |
+|---|---|
+| Business rules, calculations | Trivial getters/setters |
+| Validation, edge cases | Framework-generated code |
+| Integration with external systems | Internal structure (test behavior, not implementation) |
+| Error / fallback scenarios | Third-party libraries (they have their own tests) |
+| API contracts (request/response) | Layout/CSS unless it's a product requirement |
 
-`/plan-confidence` caps at ≤70 any plan that touches a `0%` package without adding tests for the touched code.
+## § 4.1 — Edge cases vs negative cases
 
-## Test layout
+Two distinct lenses. Cover **both** — not just whichever is easier to imagine. A suite with only edge cases is half done.
 
-- Test file lives next to the file it tests: `container.go` ↔ `container_test.go`.
-- Package convention: tests in the **same package** (`package forge`) to access unexported identifiers. Use `package forge_test` only when explicitly testing the public API surface (e.g., `examples_test.go`).
-- Golden files in `testdata/` per Go convention. Use `-update` flag to regenerate, not `-update-golden`.
+| | **Edge case** | **Negative case** |
+|---|---|---|
+| What it is | An extreme of a **valid** scenario | An **invalid / wrong / unexpected** input |
+| Why it happens | Caller pushes a limit; a rare-but-real event occurs | Caller makes a mistake; a system fails |
+| Question it answers | "Does it hold **at the boundary**?" | "Does it **fail-fast and recover gracefully**?" |
+| Passing behavior | Correct result at the extreme | Typed error + clear message, no corruption |
+| Examples | password of exactly 8 or 16 chars; empty-but-valid list; leap day (Feb 29); max int | letters in a phone field; missing required email; network down on submit; `null` where a value is required |
 
-## Test naming
+- **Edge cases test boundaries; negative cases test error handling.** They fail differently: an unhandled edge produces a *wrong answer*; an unhandled negative produces a *crash or a silent swallow*.
+- Negative cases are where **Error Handling** is proven (fail-fast, fail-clear, **typed errors**, validate at the boundary). A negative-case test asserts the *specific typed error and message* — not merely "it throws".
+- For every input boundary, ask both questions: "what is the largest/smallest **valid** value?" (edge) **and** "what is the first **invalid** value past it?" (negative).
 
-```go
-// REQUIRED — describes behavior, not method
-func TestContainer_BuildTemplate_RejectsEmptyImage(t *testing.T)
-func TestWorkflowsService_CreateWorkflow_SetsBearerToken(t *testing.T)
-func TestExprC_EscapesSingleQuotes(t *testing.T)
+## § 5 — Test pairing convention
 
-// FORBIDDEN — describes only mechanics
-func TestBuild(t *testing.T)
-func TestContainer1(t *testing.T)
-```
+The default convention assumed by stop-validation.sh:
 
-Pattern: `Test<Type>_<Method>_<Scenario>` or `Test<Function>_<Scenario>`.
+- `<name>_test.<ext>` (same directory) — Go, Python (pytest), most languages
+- `<name>.test.<ext>` — JS/TS (Jest)
+- `<name>.spec.<ext>` — JS/TS (Jasmine), Ruby
+- `test_<name>.<ext>` — Python (pytest alternative)
 
-## Arrange-Act-Assert (mandatory)
+If your project uses a different convention (e.g., separate `tests/` mirror tree), document it here so the hook knows where to look.
 
-```go
-func TestContainer_BuildTemplate_RejectsEmptyImage(t *testing.T) {
-    // Arrange
-    c := &Container{Name: "x"}
+## § 6 — Anti-patterns
 
-    // Act
-    _, err := c.BuildTemplate()
-
-    // Assert
-    if !errors.Is(err, ErrEmptyImage) {
-        t.Fatalf("got %v, want ErrEmptyImage", err)
-    }
-}
-```
-
-Comments `// Arrange` / `// Act` / `// Assert` are optional but the three sections must be visually distinct.
-
-## Table-driven tests
-
-For builder validation and similar branching logic, **table-driven is required**:
-
-```go
-func TestContainer_BuildTemplate(t *testing.T) {
-    tests := []struct {
-        name    string
-        in      *Container
-        want    model.TemplateModel
-        wantErr error
-    }{
-        {name: "minimum valid", in: &Container{Name: "x", Image: "alpine"}, want: ..., wantErr: nil},
-        {name: "rejects empty image", in: &Container{Name: "x"}, wantErr: ErrEmptyImage},
-        {name: "rejects empty name", in: &Container{Image: "alpine"}, wantErr: &ValidationError{Field: "Name"}},
-    }
-    for _, tt := range tests {
-        t.Run(tt.name, func(t *testing.T) {
-            got, err := tt.in.BuildTemplate()
-            if tt.wantErr != nil {
-                if !errors.Is(err, tt.wantErr) {
-                    t.Fatalf("err = %v, want %v", err, tt.wantErr)
-                }
-                return
-            }
-            if err != nil {
-                t.Fatalf("unexpected error: %v", err)
-            }
-            if diff := cmp.Diff(tt.want, got); diff != "" {
-                t.Errorf("mismatch (-want +got):\n%s", diff)
-            }
-        })
-    }
-}
-```
-
-## Regression-first for bug fixes
-
-> A bug-fix task MUST include a test that REPRODUCES the bug (failing before the fix), the fix, and the same test passing after.
-> — `~/.claude/CLAUDE.md §7`
-
-Every fix from `review-output/` (path traversal, expr injection, NewConfig hook isolation, etc.) MUST be preceded by a failing test that demonstrates the defect on the current code.
-
-`/plan-confidence` hard-caps any task fixing a finding from `review.db` that does NOT include a regression test at ≤70.
-
-## Determinism
-
-- No `time.Sleep` to wait for state. Use channels, contexts, or polling with timeout.
-- No reliance on map iteration order.
-- No randomized inputs without explicit seed (`math/rand` seeded; `crypto/rand` documented).
-- Race detector (`go test -race`) MUST pass on every commit.
-- Flaky tests are bugs. Fix or delete — never `t.Skip()`.
-
-## Independence
-
-- Tests MUST run in any order (`go test -shuffle=on`).
-- No global state shared between tests (e.g., the `globalConfig` singleton is a known anti-pattern — tests calling `config.SetX()` MUST reset in `t.Cleanup`).
-- No filesystem state leaked between tests. Use `t.TempDir()`.
-
-## Mocks vs real implementations
-
-| Scenario | Approach |
-|----------|----------|
-| HTTP client tests | `httptest.NewServer` with a handler asserting request shape. NEVER mock `*http.Client`. |
-| YAML serialization | Real `sigs.k8s.io/yaml`. Round-trip against golden files. |
-| Hook dispatch | Real `config.GlobalConfig` instance (call `config.NewConfig()`, register hook, build). |
-| File I/O | `t.TempDir()`. Never `/tmp` or absolute paths. |
-
-If a plan proposes mocking something other than a true external dependency (network, time, randomness), `/plan-confidence` flags it.
-
-## What NOT to test
-
-| Don't test | Why |
-|------------|-----|
-| Getters/setters that are trivial public fields | Tests provide no value beyond compilation. |
-| `sigs.k8s.io/yaml` internals | It has its own tests. |
-| Test for test-helpers (`ptrStr` et al.) | Unless the helper has non-trivial logic. |
-| Code paths excluded from public API | Cover via the public API or delete. |
-
-## CI gates (must pass)
-
-Every PR:
-
-```bash
-gofmt -l .                      # empty
-go vet ./...                    # clean
-go test -race -count=1 ./...    # all pass
-go test -coverprofile=cov.out ./... && go tool cover -func=cov.out  # meets package thresholds
-golangci-lint run ./...         # clean (when wired)
-```
-
-`/plan-confidence` requires all five in the Global DoD.
-
-## How `/plan-confidence` checks testing
-
-- Bug-fix task without `#### TDD` block → ≤70 cap.
-- Test name not matching `Test<Type>_<Method>_<Scenario>` → flag.
-- Plan touching `expr`, `config`, `serialize`, or `validate` (0% coverage) without adding tests → ≤70 cap.
-- Acceptance Criteria missing coverage check → flag.
+- Tests depending on execution order or shared state.
+- Tests asserting on internal structure (break on every refactor).
+- Excessive mocking: if you need 10 mocks to test a function, the design is wrong (revisit SRP).
+- Commented-out or permanently `@skip`'d tests — invisible technical debt.
+- Testing only the happy path. Bugs live in edge cases **and** negative cases (see § 4.1) — covering one lens while ignoring the other is half a suite.
+- Time/randomness in unit tests — inject a clock/RNG so the test is deterministic.

@@ -1,6 +1,8 @@
 ---
 name: plan-confidence
-description: Score a generated /to-plan output for structural quality (M2 deterministic check)
+version: 0.1.0
+requires: [edge-case-plan]
+description: Score a plan produced by /to-plan for structural quality (M2 deterministic check). Sibling of /discover-confidence with a plan-shape rubric. Use after /edge-case-plan, before /implement.
 user-invocable: true
 allowed-tools: Read Glob Grep Bash Write
 argument-hint: "{plan-slug}"
@@ -10,7 +12,7 @@ argument-hint: "{plan-slug}"
 
 Scores a plan produced by `/to-plan` against the M2 structural rubric. Deterministic. Zero LLM calls. Latency < 5s. Cost $0.
 
-**ADR reference:** `.claude/knowledge-base/concepts/plan-confidence/ADR-001-skeleton-and-m2.md`
+**Rubric:** `templates/rubric-v1.md` (this skill's templates dir)
 **Hard caps:** see `.claude/rules/plan-confidence-golden-rule.md`
 **Thresholds (versioned):** `.claude/rules/plan-confidence-thresholds.txt`
 
@@ -19,7 +21,7 @@ Scores a plan produced by `/to-plan` against the M2 structural rubric. Determini
 - After running `/edge-case-plan {slug}` and incorporating MUST FIX items, BEFORE implementation.
 - User explicitly invokes `/plan-confidence {plan-slug}`.
 
-This skill is part of the MANDATORY chain documented in `/to-plan` SKILL.md (`/to-plan` → `/edge-case-plan` → `/plan-confidence` → `/plan-improve` → `/plan-confidence` re-score).
+This skill is **phase 3** of [`cycle-plan`](../../rules/cycle-plan.md). The cycle rule is the source of truth for chain order, hard gates, soft gates, stop conditions, anti-patterns, and rollback. Read it before invoking this skill. This SKILL.md retains phase-specific detail (the scoring rubric, hard caps, output schema, exit codes).
 
 ## Architecture compliance check (always runs)
 
@@ -44,7 +46,7 @@ If `compliance_score < 0.4` AND the plan otherwise scores ≥ 90, a soft cap fir
 - **M5 (Calibration via Semantic Entropy + P(True))** — N-sample uncertainty.
 - **M6 (Evolutionary Loop)** — adaptive thresholds with human-gate.
 
-These dimensions return empty `motivos` in M2 output. The composite formula renormalizes to active dimensions (ADR D8): in M2, `final = 0.60·Completude + 0.40·Risco-estrutural`.
+These dimensions return empty `reasons` in M2 output. The composite formula renormalizes to active dimensions (ADR D8): in M2, `final = 0.60·Completude + 0.40·Risco-estrutural`.
 
 ## Workflow
 
@@ -53,19 +55,19 @@ These dimensions return empty `motivos` in M2 output. The composite formula reno
 3. **Parse the JSON output.** The runner emits a JSON object matching `templates/score-report-template.md`.
 4. **Render the report.** Render the JSON to the user, highlighting the top 3 contributors and detractors per dimension, with the verdict band clearly marked. If `verdict == INVALID`, display in red. If `verdict == SHIPPABLE`, display in green.
 
-## Hard Caps (mirror dogfood-golden-rule.md)
+## Hard Caps (mirror plan-confidence-golden-rule.md)
 
 A plan is INVALID and CANNOT score above 49 when any of these fire:
 
-- **Coverage Matrix < 100%** (gaps not mapped to tasks) — capped at 49 (M2 enforced).
-- **Fabricated citation** (file/symbol in `Evidence:` doesn't exist in repo) — capped at 49 (M3 future).
+- **Coverage Matrix < 100%** (gaps not mapped to tasks) — capped at 49 (M2 enforced). Stable identifier: `coverage_lt_100`.
+- **Fabricated citation** (file/symbol in `Evidence:` doesn't exist in repo) — capped at 49 (M3 future). Stable identifier: `fabricated_citation`.
 
 A plan caps at 70 (SHIPPABLE_WITH_CAVEATS at most) when:
 
-- **ADR without alternatives** listed in Rationale.
-- **Bug-fix task without explicit TDD** (RED-GREEN-REFACTOR block).
+- **ADR without alternatives** listed in Rationale. Stable identifier: `adr_without_alternatives`.
+- **Bug-fix task without explicit TDD** (RED-GREEN-REFACTOR block). Stable identifier: `tdd_in_bugfix`.
 
-These caps are INQUEBRÁVEIS. See `.claude/rules/plan-confidence-golden-rule.md` for full enforcement contract.
+These caps are INQUEBRÁVEIS. See `.claude/rules/plan-confidence-golden-rule.md` for full enforcement contract. The stable identifiers above are what appears in the JSON output's `hard_caps_triggered` list.
 
 ## Conservative Bias (fail-closed)
 
@@ -100,12 +102,12 @@ The skill produces a JSON object with these top-level keys (see `templates/score
 
 - `plan_slug`, `plan_path`, `plan_version`
 - `completude_score`, `risco_estrutural_score` (0-100 each)
-- `active_dimensions` — list of dimensions scored in this milestone (M2: `["completude", "risco_estrutural"]`)
+- `active_dimensions` — list of dimensions scored in this milestone (M2: `["completeness", "structural_risk"]`)
 - `weight_normalization_factor` — ADR D8 normalization factor applied
 - `hard_caps_triggered` — list of triggered caps (e.g., `["coverage_lt_100"]`)
 - `final_score_after_caps` — composite after applying caps
 - `verdict` — one of SHIPPABLE / SHIPPABLE_WITH_CAVEATS / NON_SHIPPABLE / INVALID
-- `motivos` — dict of dimension → list of top-3 contributors and detractors (with citations)
+- `reasons` — dict of dimension → list of top-3 contributors and detractors (with citations)
 - `sub_reports` — raw output from each checker for auditability
 
 ## Exit Codes
@@ -121,8 +123,9 @@ If a previous `/edge-case-plan {slug}` produced MUST FIX items, the current plan
 
 ## Related
 
-- Plan: `.claude/knowledge-base/plans/plan-confidence-setup-plan.md`
-- SOTA report: `.claude/knowledge-base/reviews/plan-confidence-sota-2026-05-17.md`
 - Golden rule: `.claude/rules/plan-confidence-golden-rule.md`
 - Thresholds: `.claude/rules/plan-confidence-thresholds.txt`
-- ADR D8 (renormalization): see plan ADRs section
+- Rubric: `templates/rubric-v1.md`
+- Schema: `templates/score-report.schema.json`
+- Defaults (fallback when project rules missing): `defaults/`
+- Sibling skill: `/discover-confidence` (same architecture, scores blueprints instead of plans)

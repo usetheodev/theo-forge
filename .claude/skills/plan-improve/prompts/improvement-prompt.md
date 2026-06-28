@@ -18,10 +18,9 @@ Every edit you make to the plan SHALL be compatible with these rules. If a rule 
 Fallback: if `.claude/rules/` is missing or empty, use defaults at `.claude/skills/plan-confidence/defaults/` (SOLID, DRY, Clean Code, LoC ~500, testing).
 
 When Phase B (LLM-driven ADR alternatives) runs, the alternatives you propose SHALL respect:
-- crate dependency direction (per `architecture-contract.yaml` if present)
-- domain boundaries (per `domain-boundary.md` if present)
-- file size budgets (per `size-allowlist.txt` or defaults)
-- testing conventions (per `testing.md` or defaults)
+- dependency direction and module boundaries (per `architecture.md` if present)
+- file size budgets (per `architecture.md § Module hygiene` or `.claude/skills/plan-confidence/defaults/loc-limits.md` as fallback)
+- testing conventions (per `testing.md` or `.claude/skills/plan-confidence/defaults/testing.md` as fallback)
 
 If a proposed alternative would violate any rule, choose another alternative OR leave a TODO comment marking the conflict.
 
@@ -39,20 +38,20 @@ Read the JSON output. Note:
 - `verdict` — current band
 - `final_score_after_caps`
 - `hard_caps_triggered`
-- `motivos` (per dimension, lists top contributors and detractors)
+- `reasons` (per dimension, lists top contributors and detractors)
 - `sub_reports.spec_smells.total_hits` and `by_category`
 - `sub_reports.adr_completeness.missing_alternatives`
 - `sub_reports.tdd_in_bugfix.missing_tdd`
 
 ### Step 2 — Check completion
 
-If `verdict in {SHIPPABLE, SHIPPABLE_WITH_CAVEATS}` AND no critical issue requires more work, output exactly:
+If `verdict in {SHIPPABLE, SHIPPABLE_WITH_CAVEATS}` AND no critical issue requires more work, emit the promise marker AT THE VERY END of your response — **plain text, isolated on its own line, NO backticks, NO fenced code blocks, NO markdown wrapping**. Ralph-loop's regex matches the literal sequence outside of inline code; wrapping breaks detection.
 
-```
+Correct emission (place exactly this on its own line at end of response):
+
 <promise>PLAN_IMPROVED</promise>
-```
 
-Then describe what you changed across iterations in a 5-line summary.
+You may precede the marker with a 5-line summary of what changed across iterations, but the marker must be the last content of the response.
 
 ### Step 3 — Apply deterministic fixes (Phase A)
 
@@ -63,8 +62,8 @@ python3 .claude/skills/plan-improve/scripts/apply_fixes.py "{PLAN_PATH}"
 ```
 
 This applies three SAFE deterministic transformations:
-1. **Weak imperatives** (should/could/may/might/deveria/poderia → must/deve)
-2. **Loopholes removed** (if possible, when applicable, se possível, …)
+1. **Weak imperatives** (should/could/may/might → must)
+2. **Loopholes removed** (if possible, when applicable, …)
 3. **TDD template injected** in any bug-fix task missing a `#### TDD` block
 
 These run only in PROSE (skip fenced code blocks and `### T-id` headers).
@@ -77,7 +76,7 @@ If after Phase A the verdict still does not meet target, address the issues that
 - For each ID in `sub_reports.adr_completeness.missing_alternatives`, OPEN the ADR section.
 - Locate the `### D<N> — Title` block.
 - In the `- **Rationale:**` line, append a sentence in the form:
-  `Alternativa rejeitada: <alternative-X> — descartada porque <reason-Y>.`
+  `Rejected alternative: <alternative-X> — discarded because <reason-Y>.`
 - Use your understanding of the plan's domain to propose a realistic alternative. DO NOT fabricate. If you cannot find a credible alternative, DO NOT add fake text — instead, leave a TODO comment like `<!-- TODO: human review for D<N> alternatives -->` and continue.
 
 **Unmapped Coverage Matrix gaps** (cap 49 INVALID):
@@ -87,13 +86,7 @@ If after Phase A the verdict still does not meet target, address the issues that
 
 ### Step 5 — Re-score
 
-Run the scorer again (Step 1). If improved, continue. If not improved (same or lower score), STOP and emit:
-
-```
-<promise>PLAN_IMPROVED</promise>
-```
-
-with an honest summary saying which issues remain and why the loop could not fix them automatically.
+Run the scorer again (Step 1). If improved, continue. If not improved (same or lower score), STOP and emit the promise marker per the Step 2 emission discipline (plain text, isolated line, end of response). Precede with an honest summary of remaining issues and why the loop could not fix them automatically.
 
 ## Invariants you SHALL NOT violate
 
@@ -104,13 +97,14 @@ with an honest summary saying which issues remain and why the loop could not fix
 5. **DO NOT modify task headers (`### T<N>.<M>`).** Title content is sacred.
 6. **DO NOT touch other plans.** Only the slug you were given.
 7. **DO NOT touch git history or commit changes.** Edits stay in working tree.
-8. **DO NOT emit `<promise>PLAN_IMPROVED</promise>` falsely.** Only when the target verdict is genuinely met OR you've exhausted all automatic fixes and need human intervention.
+8. **DO NOT emit `<promise>PLAN_IMPROVED</promise>` falsely.** Only when the target verdict is genuinely met (re-run `run_structural.py` AFTER your last edit in this iteration — the promise asserts a measurable fact; emitting it speculatively is fabrication) OR you've exhausted all automatic fixes and need human intervention.
+9. **DO NOT spawn a nested ralph-loop inside this iteration. DO NOT modify `.claude/ralph-loop.local.md` directly.** If you observe `ralph-loop.local.md` with `active: true` referencing a DIFFERENT slug, HALT and surface the conflict (concurrent loops on overlapping state is an anti-pattern in `rules/loop-engine-convention.md`).
 
 ## What "EXTREMELY reliable" means in this loop
 
 - You must run the scorer BEFORE and AFTER each iteration's edits.
 - You must log what you changed per iteration (a brief bullet list per iteration).
-- You must not exceed `{MAX_ITERATIONS}` total iterations.
-- If you hit max iterations without reaching target, emit the promise with an honest status report.
+- The loop has no iteration cap. It runs until EITHER the target verdict is reached on disk (emit the promise) OR a stop condition fires (HALT without promise and surface a BLOCKED report).
+- If no-improvement is detected for 2 consecutive iterations (same score, same `reasons`), do NOT keep iterating speculatively — HALT, surface BLOCKED, do not emit the promise.
 
 Start by running Step 1 now.

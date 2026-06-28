@@ -4,7 +4,7 @@
 
 **500 lines per file.**
 
-This is a soft default. Project-specific limits in `.claude/rules/size-allowlist.txt` (if present) override.
+This is a soft default. Project-specific limits documented in `.claude/rules/architecture.md § Module hygiene` (or an equivalent rules file) override.
 
 ## Why 500?
 
@@ -14,7 +14,7 @@ This is a soft default. Project-specific limits in `.claude/rules/size-allowlist
 
 ## Project-specific limits
 
-If a project has its own `.claude/rules/size-allowlist.txt` (or equivalent), it OVERRIDES this default. Common project-specific values seen in practice:
+If a project documents its own LoC budget in `.claude/rules/architecture.md` (or an equivalent rules file), it OVERRIDES this default. Common project-specific values seen in practice:
 
 - Rust workspaces: 800 LoC per file (more generous than 500 because Rust idioms are verbose)
 - TypeScript: 400 LoC per file (stricter due to JSX/React component norms)

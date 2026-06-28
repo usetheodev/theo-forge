@@ -1,199 +1,51 @@
----
-type: project-rule
-domain: error-handling
-language: go
-specializes: ~/.claude/CLAUDE.md §8 Error Handling (Fail-Fast)
-created_at: 2026-05-20
----
+# Error Handling
 
-# Error Handling — theo-forge
+Source of Truth for error-handling discipline (Unbreakable Rule 8). Stack-agnostic.
+Fail fast, fail loud, fail clear — a swallowed error is the most dangerous bug.
 
-> Falhe alto, falhe cedo, falhe claro.
-> — `~/.claude/CLAUDE.md §8`
+## § 1 — Philosophy: fail-fast
 
-For a Go SDK, error handling is the most visible part of the API contract. Sloppy error handling forces consumers to debug the SDK itself.
+The system should fail as early, as loudly, and with as clear a message as possible.
+An error caught at input validation costs cents; the same error surfacing three
+layers deep in production costs orders of magnitude more.
 
-## Hierarchy
+## § 2 — Rules
+
+- NEVER swallow exceptions. An empty `catch {}` is forbidden. If you can't handle it, let it propagate.
+- Validate inputs **at the system boundary** (controllers, consumers, handlers). Past the boundary, data is trusted.
+- Errors are **explicit and typed**. Use domain errors with clear messages — `InsufficientBalanceError("account 12345: balance 100, attempted 500")`, not `Error("processing error")`.
+- Distinguish **recoverable** from **unrecoverable**. External-API timeout → retry with backoff. Business-rule violation → fail immediately, no retry.
+- Error logs carry enough context to reproduce without a debugger: who, when, what, with which data, expected vs. actual.
+- Never use exceptions for control flow. Exceptions are for exceptional situations.
+- Return explicit errors, not magic values (`-1`, `null`, `""`) to signal failure.
+
+## § 3 — Hierarchy of handling
 
 ```
-1. VALIDATE on entry        — reject invalid inputs at the builder/client boundary
-2. FAIL fast                — return as soon as something is wrong
-3. FAIL clear               — wrapped with %w, specific context, actionable
-4. FAIL high                — propagate up to whoever can decide what to do
-5. LOG with context          — when finally caught at top-level, log fields, not concatenated strings
-6. RECOVER selectively      — retry/backoff only where it makes sense (idempotent ops)
+1. VALIDATE at the entry   → reject invalid data before processing
+2. FAIL fast               → stop immediately when something is wrong
+3. FAIL clear              → specific message with full context
+4. FAIL loud               → let the error rise to who can handle it
+5. LOG with context        → structured log with data for diagnosis
+6. RECOVER where it makes sense → retry / fallback / circuit breaker only where justified
 ```
 
-## Required patterns
+## § 4 — Relationship to other rules
 
-### Wrap with context using `%w`
+- **Negative cases** (`testing.md` § 4.1) are where this rule is proven: a negative-case test asserts the *specific typed error and message*, not merely "it throws".
+- `/code-quality` does NOT detect swallowed exceptions today — this is a review-time concern (`cycle-review.md`) and a future detector candidate.
 
-```go
-// REQUIRED
-return fmt.Errorf("build container %q: %w", c.Name, err)
+## § 5 — Anti-patterns
 
-// FORBIDDEN — loses wrap chain, breaks errors.Is/As
-return fmt.Errorf("build container: %v", err)
+- `catch (Exception e) { log.error("error"); }` — swallowed; nobody learns what happened.
+- Returning `null` instead of raising when the operation failed.
+- Generic messages: "An unexpected error occurred." For whom? About what?
+- Infinite retry without backoff or circuit breaker.
+- Treating every error the same — a network timeout and a business-rule violation are fundamentally different.
+- Logging an error and re-raising the same exception (duplicates the log without adding value).
 
-// FORBIDDEN — no context for caller
-return err
-```
+## Cross-references
 
-Exception: returning `err` unchanged is acceptable at the **bottom** of a stack frame (e.g., a thin wrapper around `yaml.Marshal`) when adding context would be noise.
-
-### Sentinel errors for known categories
-
-```go
-// model/errors.go
-var (
-    ErrEmptyImage          = errors.New("forge: container image is required")
-    ErrTemplateAmbiguous   = errors.New("forge: exactly one of Template/TemplateRef/Inline must be set")
-    ErrPathTraversal       = errors.New("forge: file name escapes output directory")
-    ErrInvalidExpression   = errors.New("forge: invalid Argo expression")
-)
-```
-
-Callers use `errors.Is(err, ErrEmptyImage)` to handle specific cases.
-
-### Typed errors when callers need fields
-
-```go
-type ValidationError struct {
-    Field string
-    Value any
-    Want  string
-    Cause error
-}
-
-func (e *ValidationError) Error() string {
-    if e.Cause != nil {
-        return fmt.Sprintf("validation failed for %s=%v (want %s): %v", e.Field, e.Value, e.Want, e.Cause)
-    }
-    return fmt.Sprintf("validation failed for %s=%v (want %s)", e.Field, e.Value, e.Want)
-}
-
-func (e *ValidationError) Unwrap() error { return e.Cause }
-```
-
-## Forbidden patterns
-
-### Silent swallow
-
-```go
-// FORBIDDEN — error vanishes
-result, _ := buildSomething()
-
-// FORBIDDEN — error logged, never returned
-if err := doWork(); err != nil {
-    log.Println(err)
-}
-
-// FORBIDDEN — converts error to nil sentinel
-if err != nil {
-    return nil
-}
-```
-
-### Catch-all panic recovery
-
-```go
-// FORBIDDEN — hides programming errors
-defer func() {
-    if r := recover(); r != nil {
-        // swallow
-    }
-}()
-```
-
-`recover()` is acceptable ONLY in server-style code that must keep running (not applicable to this SDK). For an SDK, panics escape — they signal programmer error in the consumer code.
-
-### Magic return values
-
-```go
-// FORBIDDEN — caller cannot distinguish "not found" from "empty"
-func GetWorkflow(name string) string {
-    return ""  // means error
-}
-
-// REQUIRED
-func GetWorkflow(name string) (string, error) {
-    return "", ErrNotFound
-}
-```
-
-### Bare error strings without context
-
-```go
-// FORBIDDEN
-return errors.New("error")
-return errors.New("failed")
-
-// REQUIRED
-return errors.New("forge: workflow name must match k8s naming rules")
-```
-
-All public-package errors MUST be prefixed with `forge:` or the sub-package name (`client:`, `expr:`, `serialize:`) for diagnostic clarity.
-
-## Validation at boundaries
-
-Every `Build*()` and every client method MUST validate its inputs FIRST. Validation errors return `ErrXxx` sentinels or `*ValidationError`.
-
-```go
-func (c *Container) BuildTemplate() (model.TemplateModel, error) {
-    if c.Image == "" {
-        return model.TemplateModel{}, ErrEmptyImage
-    }
-    if c.Name == "" {
-        return model.TemplateModel{}, &ValidationError{Field: "Name", Want: "non-empty"}
-    }
-    // ...
-}
-```
-
-## HTTP error handling
-
-`client/` requires:
-
-```go
-resp, err := c.http.Do(req)
-if err != nil {
-    return nil, fmt.Errorf("argo: %s %s: %w", req.Method, req.URL.Path, err)
-}
-defer resp.Body.Close()
-
-body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBodyBytes))
-if err != nil {
-    return nil, fmt.Errorf("argo: read response: %w", err)
-}
-
-if resp.StatusCode >= 400 {
-    return nil, &APIError{Status: resp.StatusCode, Body: body, Method: req.Method, Path: req.URL.Path}
-}
-```
-
-- `defer resp.Body.Close()` MUST appear immediately after the err check.
-- Body reads MUST be bounded (see SEC-005 in review).
-- Non-2xx responses MUST be converted to typed `*APIError` for caller inspection.
-
-## Test requirements
-
-Every error path MUST be tested:
-
-```go
-func TestContainer_BuildTemplate_EmptyImage(t *testing.T) {
-    c := &Container{Name: "x"}
-    _, err := c.BuildTemplate()
-    if !errors.Is(err, ErrEmptyImage) {
-        t.Fatalf("got %v, want ErrEmptyImage", err)
-    }
-}
-```
-
-See [testing.md](testing.md).
-
-## How `/plan-confidence` checks error handling
-
-- Plans introducing a function returning `(T, error)` MUST list at least one error-path test in `#### TDD`.
-- Plans modifying existing error paths MUST preserve `errors.Is/As` compatibility (cite in Consequences).
-- Pattern `_ = err` or `if err != nil { return nil }` mentioned positively in plan → ≤70 cap.
-- HTTP client changes without `LimitReader` and `defer Close` → ≤70 cap.
+- Schema for cycle rules: `cycle-rule-schema.md`
+- Negative-case testing: `testing.md` § 4.1
+- Cycles that cite this: `cycle-implement.md`, `cycle-review.md`
