@@ -3,8 +3,6 @@ name: CI
 on:
   push:
     branches: [main, develop]
-  pull_request:
-    branches: [main, develop]
 
 # Single source of truth: the Makefile defines every quality gate.
 # CI installs the toolchain, then delegates to `make verify`. Any change

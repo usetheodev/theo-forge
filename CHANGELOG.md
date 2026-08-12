@@ -24,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - CI gofmt gate (#T1.2).
 
 ### Changed
+
+- Abrir um PR não dispara mais esteira: o gatilho `pull_request` foi removido do único workflow que o declarava (`ci.yml`). CI passa a rodar **somente no merge** — push em `develop`/`main` — por decisão do dono (2026-08-12). A cobertura no merge não se perde: o mesmo workflow já disparava em `push`, que foi mantido intacto. Se este repositório tiver *required status checks* configurados no GitHub para PRs, eles precisam ser removidos lá, senão o PR fica travado esperando um check que nunca reporta.
 - License standardized to **Apache-2.0** (was MIT). Aligns all Theo open-core pillars under a single license — see root `CLAUDE.md` strategic review of 2026-05-14.
 - License standardized to **Apache-2.0** (was MIT). Aligns all usetheo open-core pillars under a single license — see root `CLAUDE.md` strategic review of 2026-05-14.
 - **BREAKING (behavior):** `expr.C` and string-interpolation methods (`Contains`, `Matches`, `StartsWith`, `EndsWith`, `Sprig.{Trim,Upper,Lower,Replace}`) now escape single quotes for safe Argo embedding. Callers that pre-escaped input must switch to `expr.RawC` to avoid double-escaping (#T2.2, SEC-002, EC-4).
